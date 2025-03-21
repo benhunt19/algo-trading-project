@@ -1,51 +1,79 @@
-from modelMeta.forecastModel import ForecastModel
+from src.forecastModelBase import ForecastModel
 import pandas as pd
 import matplotlib.pyplot as plt
 from prophet import Prophet
+from src.globals import SPTL_DATA_PATH
+
+# ~~~ INFO ~~~
+# GAM (Generalized Additive Models) based model built upon Facebook's prophet model
+
 
 class GamModel(ForecastModel):
-    
-    def __init__(self, data):
-        super().__init__(data=data) # self.data, self.results, self.forecastData
+    """
+    Description:
+        GAM (Generalized Additive Models) based model built upon Facebook's prophet model
+        
+    Parameters:
+        data (float[]): History of timeseries data to base forecast upon
+        timeseries (datetime[]): Timeseries index for the data
+    """
+    def __init__(self, data, timeseries) -> None:
+        # Initialize the parent class
+        super().__init__(data=data, timeseries=timeseries) # self.data, self.timeseries, self.results, self.forecastData
 
-        self.model= Prophet()
+        self.model= Prophet(changepoint_prior_scale=0.1, weekly_seasonality=False, daily_seasonality=False)
+        
+        # Prophet specific data
+        self.formattedData = pd.DataFrame({
+            'ds': self.timeseries,
+            'y': self.data
+        })
+        self.formattedData.astype({'ds': 'datetime64[s]'})
                 
         # Initialize with a fit
         self.fitModel()
         
-    def fitModel(self):    
-        self.results = self.model.fit(self.data)
+    def fitModel(self) -> pd.Series:    
+        self.results = self.model.fit(self.formattedData)
         return self.results
         
-    def forecast(self, steps=10):
-        self.forecastData = self.results.forecast(steps)
+    def forecast(self, steps=10) -> pd.Series:
+        # Create a DataFrame for future dates
+        future = self.model.make_future_dataframe(periods=steps)
+        self.forecastData = self.model.predict(future)
         return self.forecastData
     
-    def __str__(self):
-        return self.model.__str__()
+    def __str__(self) -> str:
+        return f"GAM Prophet"
     
-    def plot(self):
-        plt.plot(self.data)
+    # Method Overridign to use facebook default plotting
+    def plot(self) -> None:
+        fig = self.model.plot(self.forecastData)
         plt.show()
 
 
 if __name__ == "__main__":
 
-    train_pct = 80
+    train_pct = 0.5
     
-    file_name = '../data/SPTL_2023.csv'
-    data = pd.read_csv(file_name)
-    print(data[['Date', 'Close']])
+    # file_name = '../data/SPTL_2023.csv'
+    data = pd.read_csv(SPTL_DATA_PATH)
+    print("\nDataset Info:")
+    print(data.info())
+    print("\nDataset Description:")
+    print(data.describe())
     data_length = len(data)
     
+    data = data.iloc[ : int(train_pct * len(data)), :]
     
-    # model2 = GamModel(
-        # data[['Date', 'Close']],
-    # )
+    model2 = GamModel(
+        data=data['Close'],
+        timeseries=data['date_string']
+    )
     
-    # print(model2)
-    # model2.fitModel()
-    # f = model2.forecast()
-    # print(f)
+    print(model2)
+    steps = 20
+    f = model2.forecast(steps=steps)
+    print(f)
     
-    # model2.plot()
+    model2.plot()

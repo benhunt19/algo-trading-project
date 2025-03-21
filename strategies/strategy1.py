@@ -1,18 +1,26 @@
-from modelMeta.forecastModel import ForecastModel
+from src.forecastModelBase import ForecastModel
 import pandas as pd
 from statsmodels.tsa.arima.model import ARIMA
 # https://www.statsmodels.org/stable/generated/statsmodels.tsa.arima.model.ARIMA.html#statsmodels.tsa.arima.model.ARIMA
 from statsmodels.tsa.stattools import arma_order_select_ic
 import matplotlib.pyplot as plt
-
-# ~~~ INFO ~~~
-# Arima based model built upon statsmodels.tsa library
+from src.globals import SPTL_DATA_PATH
 
 class ArimaModel(ForecastModel):
-    
-    def __init__(self, data, AR_order=1, differencing_order=1, MA_order=1):
+    """
+    Description:
+        ARIMA (AutoRegressive Integrated Moving Average) based model built upon statsmodels.tsa library
         
-        super().__init__(data=data) # self.data, self.results, self.forecastData
+    Parameters:
+        data (float[]): History of timeseries data to base forecast upon
+        timeseries (datetime[]): Timeseries index for the data
+        AR_order (int): Auto Regressive look back window, AR(1), AR(2) etc...
+        differencing_order (int): Differencing (integrating) order
+        MA_order (int): Moving Average lookback window MA(1), MA(2) etc...
+    """
+    def __init__(self, data, timeseries, AR_order=1, differencing_order=1, MA_order=1) -> None:
+        # Initialize the parent class
+        super().__init__(data=data, timeseries=timeseries) # self.data, self.timeseries, self.results, self.forecastData
         
         self.AR_order = AR_order
         self.differencing_order = differencing_order
@@ -23,16 +31,24 @@ class ArimaModel(ForecastModel):
         # Initialize with a fit
         self.fitModel()
         
-    def fitModel(self):    
+    def fitModel(self) -> pd.Series:
+        """
+        Description:
+            Fit model using statsmodels.tsa inbuilt fitting algo
+        """
         self.results = self.model.fit()
         return self.results
         
-    def forecast(self, steps=10):
+    def forecast(self, steps=10) -> pd.Series:
+        """
+        Description:
+            Forecaset using historical data based on statsmodels.tsa inbuilt forecasting algo
+        """
         self.forecastData = self.results.forecast(steps)
         return self.forecastData
     
-    def __str__(self):
-        return self.model.__str__()
+    def __str__(self) -> str:
+        return f"ARIMA Model: AR({self.AR_order}), I({differencing_order}), MA({self.MA_order})"
         
     # REVISIT THIS
     def orderSelection(self, max_ar=5, max_ma=5, info_criteria=['aic', 'bic']):
@@ -45,9 +61,8 @@ if __name__ == "__main__":
     
     train_pct = 80
     
-    file_name = '../data/SPTL_2023.csv'
-    data = pd.read_csv(file_name)
-    print(data)
+    data = pd.read_csv(SPTL_DATA_PATH)
+    # print(data)
     data_length = len(data)
     
     AR_order = 2
@@ -55,16 +70,18 @@ if __name__ == "__main__":
     MA_order = 2
     
     model1 = ArimaModel(
-        data['Close'],
-        AR_order==AR_order,
+        data=data['Close'],
+        timeseries=data['Date'],
+        AR_order=AR_order,
         differencing_order=differencing_order,
         MA_order=MA_order
     )
-    print(model1)
+    
+    # print(model1)
     model1.fitModel()
-    print(model1.results.summary())
+    # print(model1.results.summary())
     
     f = model1.forecast()
-    print(f)
+    # print(f)
     
-    model1.plot()
+    # model1.plot()
