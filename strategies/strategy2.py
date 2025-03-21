@@ -21,14 +21,18 @@ class GamModel(ForecastModel):
         # Initialize the parent class
         super().__init__(data=data, timeseries=timeseries) # self.data, self.timeseries, self.results, self.forecastData
 
-        self.model= Prophet(changepoint_prior_scale=0.1, weekly_seasonality=False, daily_seasonality=False)
+        self.model= Prophet(changepoint_prior_scale=0.05, weekly_seasonality=False, daily_seasonality=True)
         
         # Prophet specific data
         self.formattedData = pd.DataFrame({
             'ds': self.timeseries,
             'y': self.data
         })
+        
+        # print(self.formattedData) # DELETE THIS
+        
         self.formattedData.astype({'ds': 'datetime64[s]'})
+        self.forecastResponse = None
                 
         # Initialize with a fit
         self.fitModel()
@@ -40,7 +44,9 @@ class GamModel(ForecastModel):
     def forecast(self, steps=10) -> pd.Series:
         # Create a DataFrame for future dates
         future = self.model.make_future_dataframe(periods=steps)
-        self.forecastData = self.model.predict(future)
+        YHAT = 'yhat' # date frame column with forecast value
+        self.forecastResponse = self.model.predict(future)
+        self.forecastData = self.forecastResponse[YHAT][-steps:]
         return self.forecastData
     
     def __str__(self) -> str:
@@ -48,7 +54,7 @@ class GamModel(ForecastModel):
     
     # Method Overridign to use facebook default plotting
     def plot(self) -> None:
-        fig = self.model.plot(self.forecastData)
+        fig = self.model.plot(self.forecastResponse)
         plt.show()
 
 
@@ -77,3 +83,5 @@ if __name__ == "__main__":
     print(f)
     
     model2.plot()
+    
+    # model2.forecastData.iloc[-steps:].to_csv("model2_test.csv")

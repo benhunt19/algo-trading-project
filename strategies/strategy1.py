@@ -48,7 +48,7 @@ class ArimaModel(ForecastModel):
         return self.forecastData
     
     def __str__(self) -> str:
-        return f"ARIMA Model: AR({self.AR_order}), I({differencing_order}), MA({self.MA_order})"
+        return f"ARIMA Model: AR({self.AR_order}), I({self.differencing_order}), MA({self.MA_order})"
         
     # REVISIT THIS
     def orderSelection(self, max_ar=5, max_ma=5, info_criteria=['aic', 'bic']):
@@ -77,11 +77,9 @@ if __name__ == "__main__":
         MA_order=MA_order
     )
     
-    # print(model1)
     model1.fitModel()
-    # print(model1.results.summary())
     
     f = model1.forecast()
-    # print(f)
+    print(f)
     
     # model1.plot()

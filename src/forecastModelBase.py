@@ -18,7 +18,14 @@ class ForecastModel:
         
     # Overridable by child classs if needed
     def plot(self) -> None:
-        plt.plot(self.data)
-        plt.show()
+        if self.forecastData is None:
+            plt.plot(self.data)
+            plt.show()
+            
+        else:
+            # Create combi dataframe and plot
+            plt.plot(self.data, color='blue')
+            plt.plot(self.forecastData, color='black')
+            plt.show()
         
     # Potentially add a data cleaning method to ensure there is a column for the timesseries and one for the value
