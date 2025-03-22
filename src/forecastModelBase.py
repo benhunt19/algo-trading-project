@@ -11,21 +11,31 @@ class ForecastModel:
         timeseries (pd.Series): Timeseries index for the data provided
     """
     def __init__(self, data, timeseries) -> None:
-        self.data = data
-        self.timeseries = timeseries
-        self.results = None
-        self.forecastData = None
+        self.data = data                    # Historic timeseries data
+        self.timeseries = timeseries        # Historic timeseries indexess (days etc.)
+        self.results = None                 # Output of the model being fitted
+        self.forecastData = None            # Future forecast data from the model
+        self.actualForwardData = None       # Actual look forward data for model comparison
+        self.name = None                    # Name of the model to be overriden in the child class
         
     # Overridable by child classs if needed
     def plot(self) -> None:
-        if self.forecastData is None:
-            plt.plot(self.data)
-            plt.show()
-            
-        else:
+        
+        plt.plot(self.data, color='blue')
+        legend = ['Historical Data']
+        
+        if self.forecastData is not None:
             # Create combi dataframe and plot
-            plt.plot(self.data, color='blue')
             plt.plot(self.forecastData, color='black')
-            plt.show()
+            legend.append('Forecast')
+        
+        if self.actualForwardData is not None:
+            plt.plot(self.actualForwardData, color='red')
+            legend.append('Actual Forward Data')
+        
+        plt.legend(legend)             
+        plt.title(self.name)
+        plt.show()
+
         
     # Potentially add a data cleaning method to ensure there is a column for the timesseries and one for the value

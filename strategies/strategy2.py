@@ -20,6 +20,7 @@ class GamModel(ForecastModel):
     def __init__(self, data, timeseries) -> None:
         # Initialize the parent class
         super().__init__(data=data, timeseries=timeseries) # self.data, self.timeseries, self.results, self.forecastData
+        self.name = 'GAM'
 
         self.model= Prophet(changepoint_prior_scale=0.05, weekly_seasonality=False, daily_seasonality=True)
         
@@ -53,8 +54,20 @@ class GamModel(ForecastModel):
         return f"GAM Prophet"
     
     # Method Overridign to use facebook default plotting
-    def plot(self) -> None:
-        fig = self.model.plot(self.forecastResponse)
+    def plot(self, maxLookback=50) -> None:
+        fig = self.model.plot(self.forecastResponse.tail(maxLookback))
+        # if self.forecastData is not None:
+            # Create combi dataframe and plot
+            # plt.plot(self.data, color='blue')
+            # plt.plot(self.forecastData, color='black')
+        if self.actualForwardData is not None:
+            last_date = pd.to_datetime(self.timeseries)
+            forward_dates = pd.date_range(start=last_date, periods=len(self.actualForwardData), freq='D')
+            self.actualForwardData.index = forward_dates
+            plt.plot(self.actualForwardData, color='red')
+            legend = ['Actual']
+            plt.legend(legend)           
+            # plt.show()
         plt.show()
 
 
