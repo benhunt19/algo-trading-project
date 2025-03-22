@@ -55,13 +55,15 @@ class GamModel(ForecastModel):
     
     # Method Overridign to use facebook default plotting
     def plot(self, maxLookback=50) -> None:
-        fig = self.model.plot(self.forecastResponse.tail(maxLookback))
+        fig = self.model.plot(self.forecastResponse)
         # if self.forecastData is not None:
             # Create combi dataframe and plot
             # plt.plot(self.data, color='blue')
             # plt.plot(self.forecastData, color='black')
         if self.actualForwardData is not None:
-            last_date = pd.to_datetime(self.timeseries)
+            last_date = pd.to_datetime(self.timeseries.iloc[-1])
+            print('last_date', last_date)
+            print('self.actualForwardData', self.actualForwardData)
             forward_dates = pd.date_range(start=last_date, periods=len(self.actualForwardData), freq='D')
             self.actualForwardData.index = forward_dates
             plt.plot(self.actualForwardData, color='red')
