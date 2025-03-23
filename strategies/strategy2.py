@@ -2,11 +2,12 @@ from src.forecastModelBase import ForecastModel
 import pandas as pd
 import matplotlib.pyplot as plt
 from prophet import Prophet
+from prophet.plot import add_changepoints_to_plot # review
 from src.globals import SPTL_DATA_PATH
+import logging
+import sys
 
-# ~~~ INFO ~~~
-# GAM (Generalized Additive Models) based model built upon Facebook's prophet model
-
+logging.getLogger("cmdstanpy").disabled = True
 
 class GamModel(ForecastModel):
     """
@@ -17,20 +18,18 @@ class GamModel(ForecastModel):
         data (float[]): History of timeseries data to base forecast upon
         timeseries (datetime[]): Timeseries index for the data
     """
-    def __init__(self, data, timeseries) -> None:
+    def __init__(self, data, timeseries, weeklySeasonality=False, dailySeasonality=False) -> None:
         # Initialize the parent class
         super().__init__(data=data, timeseries=timeseries) # self.data, self.timeseries, self.results, self.forecastData
         self.name = 'GAM'
 
-        self.model= Prophet(changepoint_prior_scale=0.05, weekly_seasonality=False, daily_seasonality=True)
+        self.model= Prophet(changepoint_prior_scale=0.05, weekly_seasonality=weeklySeasonality, daily_seasonality=dailySeasonality)
         
         # Prophet specific data
         self.formattedData = pd.DataFrame({
             'ds': self.timeseries,
             'y': self.data
         })
-        
-        # print(self.formattedData) # DELETE THIS
         
         self.formattedData.astype({'ds': 'datetime64[s]'})
         self.forecastResponse = None
@@ -62,8 +61,8 @@ class GamModel(ForecastModel):
             # plt.plot(self.forecastData, color='black')
         if self.actualForwardData is not None:
             last_date = pd.to_datetime(self.timeseries.iloc[-1])
-            print('last_date', last_date)
-            print('self.actualForwardData', self.actualForwardData)
+            # print('last_date', last_date)
+            # print('self.actualForwardData', self.actualForwardData)
             forward_dates = pd.date_range(start=last_date, periods=len(self.actualForwardData), freq='D')
             self.actualForwardData.index = forward_dates
             plt.plot(self.actualForwardData, color='red')
@@ -98,5 +97,3 @@ if __name__ == "__main__":
     print(f)
     
     model2.plot()
-    
-    # model2.forecastData.iloc[-steps:].to_csv("model2_test.csv")

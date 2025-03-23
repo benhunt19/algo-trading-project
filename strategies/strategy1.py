@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 import warnings
-from statsmodels.tools.sm_exceptions import ConvergenceWarning
+from statsmodels.tools.sm_exceptions import ConvergenceWarning, ModelWarning
 from src.globals import SPTL_DATA_PATH
 
 class ArimaModel(ForecastModel):
@@ -45,6 +45,10 @@ class ArimaModel(ForecastModel):
         return self.results
         
     def runChecks(self):
+        """
+        Description:
+            Perform statistical tests to find best parameters to use
+        """
         # 1. Check for stationarity using ADF test
         def adf_test(series):
             result = adfuller(series)
@@ -99,8 +103,6 @@ class ArimaModel(ForecastModel):
 
 ## Remove once built
 if __name__ == "__main__":
-    
-    warnings.filterwarnings('ignore', category=ConvergenceWarning)
     
     train_pct = 80
     

@@ -7,6 +7,11 @@ class Portfolio:
     """
     Description:
         Class to manage funds, changes and relaizations on daily granularity
+    
+    Parameters:
+        starting_cap (float): Starting capital of the portfolio (before leverage)
+        leverage (float): The leverage amount to adjust the portfolio by
+        length (int): How long the portfolio will be run over
     """
     def __init__(self, starting_cap, leverage, length):
         self.starting_cap = starting_cap                                    # The starting value of the portfolio  
@@ -19,6 +24,8 @@ class Portfolio:
         self.starting_cap = starting_cap
         self.starting_leveraged_cap = self.leverage * self.starting_cap
         self.dailyReturns = np.zeros(length)                                # Daily actual returns from the stock
+        self.predictedReturns = np.zeros(length)                            # Returns
+        self.maxPredictedReturn = 0                                         # The max predicted return yet
         self.stockData = np.zeros(length)                                   # Final stock data for plotting
         self.graphs = [
             {'title': 'Portfolio Total Value', 'data': self.value},
@@ -26,39 +33,51 @@ class Portfolio:
             {'title': 'Theta Prime (Risk-Free Position)', 'data': self.thetaPrime}
         ]
     
-    def processDay(self, returns, nextDayPredictedReturns, riskFreeRate, standardDeviation):
+    def processDay(self, returns, nextDayPredictedReturns, riskFreeRate, standardDeviation, threshold=0.3, verbose=True):
         """
         Description:
             Process a new day and update positon in the market
+
+        Parameters:
+            returns (float): The percentage change on the stock, going into the day
+            nextDayPredictedReturns (float): A models next day prediction for the returns
+            riskFreeRate (float): Daily risk free percentage
+            standardDeviation (float): Standard deviation of stock in run up
+            threshold (float): The threshold to decide the BUY/SELL/NEUTRAL decision
+            verbose (bool): Print status of each decision
         """
         
         # Take a stance on the first day
         if self.currentDayIndex == 0:
+            
             self.value[self.currentDayIndex] = self.starting_leveraged_cap
-            # if nextDayPredictedReturns > 0:
             self.thetas[self.currentDayIndex] = self.value[self.currentDayIndex] * 0.5
-            # else:
             self.thetaPrime[self.currentDayIndex] = self.value[self.currentDayIndex] * 0.5
         
         # All other day
         else:
+            
             # Start by processing returns going into the day
             self.thetas[self.currentDayIndex] = self.thetas[self.currentDayIndex - 1] * (1 + returns)
-            self.thetaPrime[self.currentDayIndex] = self.thetaPrime[self.currentDayIndex - 1] * (1 + riskFreeRate / 100)
+            self.thetaPrime[self.currentDayIndex] = self.thetaPrime[self.currentDayIndex - 1] * (1 + riskFreeRate)
             self.value[self.currentDayIndex] = self.totalCapitalOnDay(self.currentDayIndex)
+            self.predictedReturns[self.currentDayIndex] = nextDayPredictedReturns
+            
+            # Maintain data for the maximum predicted returns
+            if abs(nextDayPredictedReturns) > self.maxPredictedReturn:
+                self.maxPredictedReturn = abs(nextDayPredictedReturns)
             
             # Now handle position adjustment based on the models output
-            
-            threshold = 0.2 # Add some fancy maths here to calculate the threshold
-            
-            if nextDayPredictedReturns > 0 + threshold:
-                print('BUY - GOING LONG')
+                        
+            if nextDayPredictedReturns > threshold:
+                if verbose:
+                    print('BUY - GOING LONG')
                 # Process increase in theta
                 if self.thetas[self.currentDayIndex] < self.totalCapitalOnDay():
                     
                     # The strength of the position needs to be determined by the strength of the signal
-                    buyStrength = 1
-                    
+                    # buyStrength = 0.7
+                    buyStrength = min(nextDayPredictedReturns / self.maxPredictedReturn, 1)
                     dayCapStart = self.totalCapitalOnDay()
                     
                     self.thetas[self.currentDayIndex] = buyStrength * dayCapStart
@@ -69,19 +88,26 @@ class Portfolio:
                     pass
                 
             elif abs(nextDayPredictedReturns) <= threshold:
-                print("NEUTRAL - UPDATING TO HOLD RISK FREE")
+                
+                if verbose:
+                    print("NEUTRAL - UPDATING TO HOLD RISK FREE")
                 
                 # Chuck all in the risk free for the timebeing
                 self.thetaPrime[self.currentDayIndex] = self.totalCapitalOnDay()
                 self.thetas[self.currentDayIndex] = 0
             
-            elif nextDayPredictedReturns < 0 - threshold:
-                print("SELL - GOING SHORT")
+            elif nextDayPredictedReturns < -threshold:
+                
+                if verbose:
+                    print("SELL - GOING SHORT")
                 
                 if abs(self.thetas[self.currentDayIndex]) < self.totalCapitalOnDay():
                     
                     # The strength of the position needs to be determined by the strength of the signal
-                    sellStrength = 1
+                    # sellStrength = 1
+                    
+                    sellStrength = min(abs(nextDayPredictedReturns) / self.maxPredictedReturn, 1)
+                    dayCapStart = self.totalCapitalOnDay()
                     
                     dayCapStart = self.totalCapitalOnDay()
                     
@@ -93,7 +119,9 @@ class Portfolio:
                     pass
             
         # Update daily value and finish eith updating the day index
-        self.printDayUpdate()
+        if verbose:
+            self.printDayUpdate()
+            
         self.value[self.currentDayIndex] = self.totalCapitalOnDay()
         self.currentDayIndex += 1
         
@@ -191,3 +219,7 @@ class Portfolio:
 
         plt.draw()  # Redraw the plot
         plt.pause(0.01)  # Pause to allow the plot to update
+        
+    def sharpeRatio(self):
+        finalReturns = self.value[-1] - self.starting_leveraged_cap
+        return finalReturns / self.value.std()
