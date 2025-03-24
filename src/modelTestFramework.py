@@ -1,5 +1,6 @@
 from strategies.strategy1 import ArimaModel
 from strategies.strategy2 import GamModel
+from strategies.strategy3 import GarchModel
 from src.globals import (SPTL_DATA_PATH, SPTL_DATA_PATH_LOOKBACK)
 from src.portfolio import Portfolio
 import pandas as pd
@@ -119,7 +120,7 @@ class ModelTestingFramework:
                 portfolio.processDay(
                     returns=realisedReturns,
                     nextDayPredictedReturns=deltaAfterN,
-                    riskFreeRate=self.riskNeutral[tmpEndIndex] / 100,
+                    riskFreeRate=self.riskNeutral[tmpEndIndex],
                     standardDeviation=dayStdDev,
                     threshold=self.models[modelName]['deltaThreshold'],
                     verbose=False
@@ -215,6 +216,12 @@ if __name__ == "__main__":
         }
     )
     
+    modelTestMeta4 = ModelTestingFramework.modelMetaBuilder(
+        model=GarchModel,
+        thresholds=np.linspace(0.15, 1.5, 12),
+        kwargs={'p': 2, 'q': 2}
+    )
+    
     # combiMeta = modelTestMeta1 + modelTestMeta2 + modelTestMeta3
     
     data = pd.read_csv(SPTL_DATA_PATH_LOOKBACK)
@@ -225,7 +232,7 @@ if __name__ == "__main__":
     mft = ModelTestingFramework(
         leverage=leverage,
         starting_cap=starting_cap,
-        models=modelTestMeta3,
+        models=modelTestMeta4,
         data=data['Close'],
         timeseries=data['date_string'],
         riskNeutral=data['daily_risk_free']
