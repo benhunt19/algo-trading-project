@@ -2,6 +2,9 @@
 from models.arima import ArimaModel
 from models.prophet import GamModel
 from models.garch import GarchModel
+from models.arimaGarch import ArimaGarchModel
+from models.buyAndHold import BuyAndHoldModel
+
 from src.globals import (SPTL_DATA_PATH, SPTL_DATA_PATH_LOOKBACK)
 from src.portfolio import Portfolio
 import pandas as pd
@@ -83,11 +86,25 @@ class ModelTestingFramework:
                     **modelMeta['kwargs']
                 )
                 
+                # Model Override for the lookforward
+                if m.lookForwardOverride is not None:
+                    longLookForward = m.lookForwardOverride
+                
                 # Foreast Lookback windows
-                # shortLookForwardData = m.forecast(steps=shortLookForward)
                 longLookForwardData = m.forecast(steps=longLookForward)
-
-                deltaAfterN = longLookForwardData.iloc[-1] - tmpTrainData.iloc[-1]
+                
+                longLookForwardDataDiff = longLookForwardData.iloc[-1] - longLookForwardData.iloc[0]
+                if verbose:
+                    print('longLookForwardDataDiff: ', longLookForwardDataDiff)
+                    print(longLookForwardData)
+                    
+                
+                # Change this to check for m.useLookForwardDiff
+                
+                if not m.useLookForwardDiff:
+                    deltaAfterN = longLookForwardData.iloc[-1] - tmpTrainData.iloc[-1]
+                else:
+                    deltaAfterN = longLookForwardDataDiff
                 
                 actualDeltaAfterN = self.data.iloc[tmpEndIndex + longLookForward] - tmpTrainData.iloc[-1]
                 
@@ -121,6 +138,9 @@ class ModelTestingFramework:
                     verbose=False
                 )
                 
+                # if i == forcastLength - 1:
+                    # m.plot()
+                
                 # Clear portfolio data
                 del m
                 portfolio.stockData[i] = self.data.iloc[tmpEndIndex + 1]
@@ -134,6 +154,10 @@ class ModelTestingFramework:
             
             print("Final value:")
             print(portfolio.totalCapitalOnDay(portfolio.currentDayIndex - 1))
+            
+            print("Final Returns on Original:")
+            finalReturns = (portfolio.totalCapitalOnDay(portfolio.currentDayIndex - 1) - portfolio.starting_leveraged_cap) / portfolio.starting_cap
+            print(finalReturns)
             
             print('sharpeRatio: ', portfolio.sharpeRatio())
             
@@ -151,7 +175,7 @@ class ModelTestingFramework:
                 'deltaThreshold': threshold,
                 'model': model,
                 'kwargs': kwargs,
-                'enabled': True
+                'enabled': True,
             } for threshold in thresholds
         ]
         
@@ -202,10 +226,12 @@ if __name__ == "__main__":
     
     modelTestMeta3 = ModelTestingFramework.modelMetaBuilder(
         model=GamModel,
-        thresholds=np.linspace(0.2, 1.5, 6),
+        thresholds=np.linspace(0.0, 0.8, 10),
         kwargs={
             'weeklySeasonality': False,
             'dailySeasonality': False,
+            'lookForwardOverride': 5,
+            'useLookForwardDiff': True
         }
     )
     
@@ -214,7 +240,24 @@ if __name__ == "__main__":
         thresholds=np.linspace(0.15, 1.5, 12),
         kwargs={
             'p': 2,
-            'q': 2
+            'q': 2,
+            'lookForwardOverride': 5
+        }
+    )
+    
+    modelTestMeta5 = ModelTestingFramework.modelMetaBuilder(
+        model=BuyAndHoldModel,
+        thresholds=[0.1],
+        kwargs={}
+    )
+    
+    modelTestMeta6 = ModelTestingFramework.modelMetaBuilder(
+        model=ArimaGarchModel,
+        thresholds=np.linspace(0.2, 1, 10),
+        kwargs={
+            'AR_order': 2,
+            'differencing_order': 1,
+            'MA_order': 4
         }
     )
     
@@ -229,18 +272,18 @@ if __name__ == "__main__":
     mft = ModelTestingFramework(
         leverage=leverage,
         starting_cap=starting_cap,
-        models=modelTestMeta1,
+        models=modelTestMeta4,
         data=data['Close'],
         timeseries=data['date_string'],
         riskNeutral=data['daily_risk_free']
     )
     
     testModelDicts = {
-        'lookbackWindow': np.inf, 
+        'lookbackWindow': 250, 
         'startIndex': 250,
         'endIndex': 490,
         'plotOnModuloIndex': 40,
-        'longLookForward': 10,
+        'longLookForward': 6,
         'verbose': False,
         'plot': True,
         'livePlot': False

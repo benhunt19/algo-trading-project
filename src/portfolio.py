@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import time
+import pandas as pd
 
 class Portfolio:
     """
@@ -51,8 +52,8 @@ class Portfolio:
         if self.currentDayIndex == 0:
             
             self.value[self.currentDayIndex] = self.starting_leveraged_cap
-            self.thetas[self.currentDayIndex] = self.value[self.currentDayIndex] * 0.5
-            self.thetaPrime[self.currentDayIndex] = self.value[self.currentDayIndex] * 0.5
+            self.thetas[self.currentDayIndex] = self.value[self.currentDayIndex] * 0
+            self.thetaPrime[self.currentDayIndex] = self.value[self.currentDayIndex] 
         
         # All other day
         else:
@@ -131,6 +132,11 @@ class Portfolio:
         self.currentDayIndex += 1
         
     def totalCapitalOnDay(self, dayIndex=None):
+        """
+        Description:
+            Get the total capital on a day, this is based on the thetas
+            and the risk free capital spare
+        """
         dayIndex = self.currentDayIndex if dayIndex is None else dayIndex
         return abs(self.thetas[dayIndex]) + self.thetaPrime[dayIndex]
     
@@ -177,7 +183,7 @@ class Portfolio:
         
         fig, axis = plt.subplots(2, 2, figsize=(10, 3 * len(self.graphs)))
         axis_flat = axis.flatten()
-        plotGap = 1.5
+        plotGap = 2
         
         self.lines = [None for _ in self.graphs]
         
@@ -224,7 +230,20 @@ class Portfolio:
 
         plt.draw()  # Redraw the plot
         plt.pause(0.01)  # Pause to allow the plot to update
-        
+    
+    
+    def returnsOnOriginal(self) -> pd.DataFrame:
+        return (self.value[-1] - self.starting_leveraged_cap) / self.starting_cap
+    
     def sharpeRatio(self):
-        finalReturns = self.value[-1] - self.starting_leveraged_cap
-        return finalReturns / self.value.std()
+        # Calculate daily returns
+        daily_returns = np.diff(self.value) / self.value[:-1]
+        
+        # Calculate the mean and standard deviation of daily returns
+        mean_daily_return = np.mean(daily_returns)
+        std_daily_return = np.std(daily_returns)
+        
+        # Annualize the Sharpe Ratio (assuming 252 trading days in a year)
+        sharpe_ratio = (mean_daily_return / std_daily_return) * np.sqrt(252)
+        
+        return sharpe_ratio

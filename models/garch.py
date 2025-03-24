@@ -1,31 +1,37 @@
-from src.forecastModelBase import ForecastModel
+from models.baseModel import ForecastModel
 import pandas as pd
 from arch import arch_model
 import matplotlib.pyplot as plt
-from statsmodels.tsa.stattools import adfuller
+from statsmodels.tsa.stattools import adfuller, acf, pacf
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 import warnings
 from src.globals import SPTL_DATA_PATH
+import seaborn as sns
 
+from statsmodels.tsa.stattools import q_stat
+from statsmodels.stats.diagnostic import het_arch
+# from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+import numpy as np
 class GarchModel(ForecastModel):
     """
     Description:
-        ARCH (Autoregressive Conditional Heteroskedasticity) based model built upon arch library
+        GARCH (Generalized Autoregressive Conditional Heteroskedasticity) based model built upon arch library
         
     Parameters:
         data (float[]): History of timeseries data to base forecast upon
         timeseries (datetime[]): Timeseries index for the data
-        p (int): Order of the lag of the squared residuals
-        q (int): Order of the lag of the conditional variance
+        p (int): Order of the GARCH terms (α)
+        q (int): Order of the ARCH terms (β)
     """
-    def __init__(self, data, timeseries, p=2, q=2) -> None:
+    def __init__(self, data, timeseries, p=2, q=2, lookForwardOverride=None) -> None:
         # Initialize the parent class
         super().__init__(data=data, timeseries=timeseries) # self.data, self.timeseries, self.results, self.forecastData, self.name
-        self.name = 'ARCH'
+        self.name = 'GARCH'
         
         self.p = p
         self.q = q
-        self.model = arch_model(self.data, vol='ARCH', p=self.p, q=self.q)
+        self.model = arch_model(self.data, vol='Garch', p=self.p, q=self.q)
+        self.lookForwardOverride = lookForwardOverride
         
         # Initialize with a fit
         self.fitModel()
@@ -38,34 +44,67 @@ class GarchModel(ForecastModel):
         self.results = self.model.fit(disp='off')
         return self.results
         
-    def runChecks(self):
+    def runChecks(self) -> None:
         """
-        Description:
-            Perform statistical tests to find best parameters to use
+        Perform statistical tests to determine the best parameters for a GARCH model.
         """
-        # 1. Check for stationarity using ADF test
+        
+        # 1. Convert to log returns (if needed)
+        self.data = np.log(self.data).diff().dropna()
+
+        # 2. Check stationarity with ADF test
         def adf_test(series):
             result = adfuller(series)
             print(f"ADF Statistic: {result[0]}")
             print(f"p-value: {result[1]}")
             return result[1] < 0.05  # If True, series is stationary
-
-        print("Before differencing:")
-        is_data_stationary = adf_test(self.data)
-        print(is_data_stationary)
         
-        # 2. Differencing if necessary
-        if not is_data_stationary:
-            time_series_diff = self.data.diff().dropna()
-            print("\nAfter differencing:")
-            is_differenced_stationary = adf_test(time_series_diff)
-            print(is_differenced_stationary)
+        print("Checking stationarity of log returns:")
+        is_data_stationary = adf_test(self.data)
+        
+        # 3. Check for ARCH effects using Engle's test
+        arch_test_pval = het_arch(self.data)[1]
+        print(f"\nEngle's ARCH test p-value: {arch_test_pval}")
+        
+        if arch_test_pval > 0.05:
+            print("No significant ARCH effect detected. GARCH modeling might not be necessary.")
+    
+        # 4. Compare different GARCH orders using AIC/BIC
+        print("\nComparing different GARCH orders:")
+        orders = [(1,1), (1,2), (2,1), (2,2)]
+        results = {}
+        
+        for p, q in orders:
+            try:
+                model = arch_model(self.data, vol='Garch', p=p, q=q)
+                fitted = model.fit(disp='off')
+                results[(p,q)] = {
+                    'AIC': fitted.aic,
+                    'BIC': fitted.bic
+                }
+                print(f"GARCH({p},{q}): AIC={fitted.aic:.2f}, BIC={fitted.bic:.2f}")
+            except:
+                print(f"GARCH({p},{q}) failed to converge")
 
-        # 3. Identify ARCH(p,q) orders using ACF and PACF
+        # 5. Plot ACF and PACF
+        squared_returns = self.data ** 2
+
         fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-        plot_acf(time_series_diff, ax=axes[0])
-        plot_pacf(time_series_diff, ax=axes[1])
-        plt.show()
+        sns.set_style("darkgrid")
+        plot_acf(self.data, ax=axes[0])
+        axes[0].set_title('ACF of Returns')
+        axes[0].set_xlabel('Lags')
+        axes[0].set_ylabel('Correlation')
+        axes[0].legend(['ACF'])
+        
+        plot_pacf(self.data, ax=axes[1])
+        axes[1].set_title('PACF of Returns')
+        axes[1].set_xlabel('Lags')
+        axes[1].set_ylabel('Correlation')
+        axes[1].legend(['PACF'])
+        
+        plt.close()
+        
         
     def forecast(self, steps=10) -> pd.Series:
         """
@@ -73,7 +112,15 @@ class GarchModel(ForecastModel):
             Forecast using historical data based on arch inbuilt forecasting algo
         """
         self.forecastData = self.results.forecast(horizon=steps)
+        # Get the mean forecast values as a series
+        # print(self.forecastData.simulations())
+        # print(self.forecastData.mean.iloc[-steps:])
         return self.forecastData.mean.iloc[-1]
+        # return self.forecastData.mean.iloc[-steps:]
+    
+    # Review
+    def plot(self) -> None:
+        pass
     
     def __str__(self) -> str:
         return f"ARCH Model: p({self.p}), q({self.q})"

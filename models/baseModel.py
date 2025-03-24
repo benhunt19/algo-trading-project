@@ -17,6 +17,8 @@ class ForecastModel:
         self.forecastData = None            # Future forecast data from the model
         self.actualForwardData = None       # Actual look forward data for model comparison
         self.name = None                    # Name of the model to be overriden in the child class
+        self.lookForwardOverride = None     # Look forward override to be used in forecasting
+        self.useLookForwardDiff = False     # Look at future trend diffs rather than their absolute values
         
     # Overridable by child classs if needed
     def plot(self) -> None:
