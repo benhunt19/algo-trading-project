@@ -58,14 +58,14 @@ class Portfolio:
         # All other day
         else:
             
-            # Start by processing returns going into the day
+            # Start by processing returns going into the day, the returns based on the sign and also reducing by the risk free rate as payment for the leverage
             if self.thetas[self.currentDayIndex - 1] > 0:
                 self.thetas[self.currentDayIndex] = self.thetas[self.currentDayIndex - 1] * (1 + returns - riskFreeRate)
             else:
-                self.thetas[self.currentDayIndex] = self.thetas[self.currentDayIndex - 1] * (1 - returns - riskFreeRate)
+                self.thetas[self.currentDayIndex] = self.thetas[self.currentDayIndex - 1] * (1 - returns + riskFreeRate)
             
             
-            self.thetaPrime[self.currentDayIndex] = self.thetaPrime[self.currentDayIndex - 1] #* (1 + riskFreeRate)
+            self.thetaPrime[self.currentDayIndex] = self.thetaPrime[self.currentDayIndex - 1] * max(1 + (riskFreeRate / self.leverage) - abs(self.thetas[self.currentDayIndex - 1] / self.leverage), 1)
             self.value[self.currentDayIndex] = self.totalCapitalOnDay(self.currentDayIndex)
             self.predictedReturns[self.currentDayIndex] = nextDayPredictedReturns
             

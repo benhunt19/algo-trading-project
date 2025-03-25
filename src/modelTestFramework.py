@@ -61,7 +61,7 @@ class ModelTestingFramework:
             if not modelMeta['enabled']:
                 continue
             
-            pprint(f"Running For Model:")
+            print(f'Running For Model:')
             pprint(modelMeta)
 
             # For each forward looking timestep
@@ -138,8 +138,8 @@ class ModelTestingFramework:
                     verbose=False
                 )
                 
-                # if i == forcastLength - 1:
-                    # m.plot()
+                # if i % 25 == 0:
+                #     m.plot()
                 
                 # Clear portfolio data
                 del m
@@ -160,6 +160,7 @@ class ModelTestingFramework:
             print(finalReturns)
             
             print('sharpeRatio: ', portfolio.sharpeRatio())
+            print('LookbackWindow: ', lookbackWindow)
             
             if plot:
                 portfolio.plot()
@@ -218,7 +219,7 @@ if __name__ == "__main__":
         model=ArimaModel,
         thresholds=np.linspace(0, 0.4, 10),
         kwargs={
-            'AR_order': 2,
+            'AR_order': 1,
             'differencing_order': 1,
             'MA_order': 4
         }
@@ -226,12 +227,13 @@ if __name__ == "__main__":
     
     modelTestMeta3 = ModelTestingFramework.modelMetaBuilder(
         model=GamModel,
-        thresholds=np.linspace(0.0, 0.8, 10),
+        thresholds=np.linspace(0.3, 1.3, 10),
         kwargs={
             'weeklySeasonality': False,
             'dailySeasonality': False,
             'lookForwardOverride': 5,
-            'useLookForwardDiff': True
+            'useLookForwardDiff': False,
+            'changepointPriorScale': 10
         }
     )
     
@@ -241,7 +243,7 @@ if __name__ == "__main__":
         kwargs={
             'p': 2,
             'q': 2,
-            'lookForwardOverride': 5
+            'lookForwardOverride': 10
         }
     )
     
@@ -261,8 +263,58 @@ if __name__ == "__main__":
         }
     )
     
+    ###### GAM TESTING AREA ########
+    
+    modelTestMeta10 = ModelTestingFramework.modelMetaBuilder(
+        model=GamModel,
+        thresholds=np.linspace(0.05, 0.2, 8),
+        kwargs={
+            'weeklySeasonality': False,
+            'dailySeasonality': False,
+            'lookForwardOverride': 5,
+            'useLookForwardDiff': True,
+            'changepointPriorScale': 0.01
+        }
+    )
+    
+    modelTestMeta11 = ModelTestingFramework.modelMetaBuilder(
+        model=GamModel,
+        thresholds=np.linspace(0.05, 0.3, 5),
+        kwargs={
+            'weeklySeasonality': False,
+            'dailySeasonality': False,
+            'lookForwardOverride': 5,
+            'useLookForwardDiff': True,
+            'changepointPriorScale': 0.1
+        }
+    )
+    
+    modelTestMeta12 = ModelTestingFramework.modelMetaBuilder(
+        model=GamModel,
+        thresholds=np.linspace(0.1, 1, 5),
+        kwargs={
+            'weeklySeasonality': False,
+            'dailySeasonality': False,
+            'lookForwardOverride': 2,
+            'useLookForwardDiff': False,
+            'changepointPriorScale': 0.01
+        }
+    )
+    
+    modelTestMeta13 = ModelTestingFramework.modelMetaBuilder(
+        model=GamModel,
+        thresholds=np.linspace(0.1, 1, 5),
+        kwargs={
+            'weeklySeasonality': False,
+            'dailySeasonality': False,
+            'lookForwardOverride': 10,
+            'useLookForwardDiff': False,
+            'changepointPriorScale': 0.05
+        }
+    )
+    
     # combiMeta = modelTestMeta3 + modelTestMeta4
-    combiMeta = modelTestMeta4
+    combiMeta =  modelTestMeta11 + modelTestMeta12 + modelTestMeta13 
     
     data = pd.read_csv(SPTL_DATA_PATH_LOOKBACK)
     data_length = len(data)
@@ -279,7 +331,7 @@ if __name__ == "__main__":
     )
     
     testModelDicts = {
-        'lookbackWindow': 250, 
+        'lookbackWindow': np.inf, 
         'startIndex': 250,
         'endIndex': 490,
         'plotOnModuloIndex': 40,

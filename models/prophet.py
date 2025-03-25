@@ -18,14 +18,14 @@ class GamModel(ForecastModel):
         data (float[]): History of timeseries data to base forecast upon
         timeseries (datetime[]): Timeseries index for the data
     """
-    def __init__(self, data, timeseries, weeklySeasonality=False, dailySeasonality=False, lookForwardOverride=None, useLookForwardDiff=False) -> None:
+    def __init__(self, data, timeseries, weeklySeasonality=False, dailySeasonality=False, lookForwardOverride=None, useLookForwardDiff=False, changepointPriorScale=0.05) -> None:
         # Initialize the parent class
         super().__init__(data=data, timeseries=timeseries) # self.data, self.timeseries, self.results, self.forecastData
         self.name = 'GAM'
         self.lookForwardOverride = lookForwardOverride
         self.useLookForwardDiff = useLookForwardDiff
 
-        self.model= Prophet(changepoint_prior_scale=0.05, weekly_seasonality=weeklySeasonality, daily_seasonality=dailySeasonality)
+        self.model= Prophet(changepoint_prior_scale=changepointPriorScale, weekly_seasonality=weeklySeasonality, daily_seasonality=dailySeasonality)
         
         # Prophet specific data
         self.formattedData = pd.DataFrame({
