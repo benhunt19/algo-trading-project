@@ -1,6 +1,7 @@
 from models.baseModel import ForecastModel
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 from prophet import Prophet
 from prophet.plot import add_changepoints_to_plot # review
 from src.globals import SPTL_DATA_PATH
@@ -56,21 +57,26 @@ class GamModel(ForecastModel):
     
     # Method Overridign to use facebook default plotting
     def plot(self, maxLookback=50) -> None:
+        plt.rcParams["figure.figsize"] = (12, 6)
         fig = self.model.plot(self.forecastResponse)
-        # if self.forecastData is not None:
-            # Create combi dataframe and plot
-            # plt.plot(self.data, color='blue')
-            # plt.plot(self.forecastData, color='black')
+        # changepoint_plot = add_changepoints_to_plot(fig.gca(), self.model, self.forecastResponse)
+        # plt.figure(figsize=(12, 6))
+        # plt.figure(figsize=(15, 8))
+        plt.subplots_adjust(top=0.9)
+        sns.set_style('darkgrid')
+        legend = ['Historic Actual', 'Piecewise Linear Mean', 'Confidence Interval', ]
+        # plt.legend(legend)
+        plt.title('GAM (Prophet) Forecast Example')
+        plt.xlabel('Time')
+        plt.ylabel('SPTL Price ($)')
         if self.actualForwardData is not None:
             last_date = pd.to_datetime(self.timeseries.iloc[-1])
-            # print('last_date', last_date)
-            # print('self.actualForwardData', self.actualForwardData)
             forward_dates = pd.date_range(start=last_date, periods=len(self.actualForwardData), freq='D')
             self.actualForwardData.index = forward_dates
             plt.plot(self.actualForwardData, color='red')
-            legend = ['Actual']
-            plt.legend(legend)           
-            # plt.show()
+            legend.append('Actual Future Value')
+        plt.legend(legend)           
+
         plt.show()
 
 

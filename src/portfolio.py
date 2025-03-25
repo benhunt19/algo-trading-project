@@ -16,13 +16,14 @@ class Portfolio:
     """
     def __init__(self, starting_cap, leverage, length):
         self.starting_cap = starting_cap                                    # The starting value of the portfolio  
-        self.sentiment = np.zeros(length)                                   # The positions that we take at time [-1, 1]
         self.thetas = np.zeros(length)                                      # The portfolio
         self.thetaPrime = np.zeros(length)                                  # The amount that is sat increasing at the risk free
         self.value = np.zeros(length)                                       # The portfolio value for each day
         self.currentDayIndex = 0                                            # Day index that
         self.leverage = leverage
         self.starting_cap = starting_cap
+        self.PnL = np.zeros(length)                                         # The differences in theta
+        self.capitalGains = np.zeros(length)                                # The capital gains from the risk free
         self.starting_leveraged_cap = self.leverage * self.starting_cap
         self.dailyReturns = np.zeros(length)                                # Daily actual returns from the stock
         self.predictedReturns = np.zeros(length)                            # Returns
@@ -60,12 +61,17 @@ class Portfolio:
             
             # Start by processing returns going into the day, the returns based on the sign and also reducing by the risk free rate as payment for the leverage
             if self.thetas[self.currentDayIndex - 1] > 0:
-                self.thetas[self.currentDayIndex] = self.thetas[self.currentDayIndex - 1] * (1 + returns - riskFreeRate)
+                gainFromMarket = self.thetas[self.currentDayIndex - 1] * ( returns - riskFreeRate)
+                self.thetas[self.currentDayIndex] = self.thetas[self.currentDayIndex - 1] +  gainFromMarket
             else:
-                self.thetas[self.currentDayIndex] = self.thetas[self.currentDayIndex - 1] * (1 - returns + riskFreeRate)
+                gainFromMarket = abs(self.thetas[self.currentDayIndex - 1]) * (- returns - riskFreeRate)
+                self.thetas[self.currentDayIndex] = self.thetas[self.currentDayIndex - 1] - gainFromMarket
+                
+            self.PnL[self.currentDayIndex] = gainFromMarket
             
-            
-            self.thetaPrime[self.currentDayIndex] = self.thetaPrime[self.currentDayIndex - 1] * max(1 + (riskFreeRate / self.leverage) - abs(self.thetas[self.currentDayIndex - 1] / self.leverage), 1)
+            capitalGain = self.thetaPrime[self.currentDayIndex - 1] * max((riskFreeRate / self.leverage), 0)
+            self.thetaPrime[self.currentDayIndex] = self.thetaPrime[self.currentDayIndex - 1] + capitalGain
+            self.capitalGains[self.currentDayIndex] = capitalGain
             self.value[self.currentDayIndex] = self.totalCapitalOnDay(self.currentDayIndex)
             self.predictedReturns[self.currentDayIndex] = nextDayPredictedReturns
             
@@ -83,6 +89,7 @@ class Portfolio:
                     
                     # The strength of the position needs to be determined by the strength of the signal
                     # buyStrength = 0.7
+                    
                     buyStrength = min(nextDayPredictedReturns / self.maxPredictedReturn, 1)
                     dayCapStart = self.totalCapitalOnDay()
                     
@@ -154,7 +161,7 @@ class Portfolio:
             self.graphs.append({'title': 'Stock Price', 'data': self.stockData},)
                 
         fig, axis = plt.subplots(2, 2, figsize=(10, 3 * len(self.graphs)))
-        plotGap = 1.5
+        plotGap = 2
         
         # Flatten the 2x2 axis array for easier iteration
         axis_flat = axis.flatten()
@@ -247,3 +254,20 @@ class Portfolio:
         sharpe_ratio = (mean_daily_return / std_daily_return) * np.sqrt(252)
         
         return sharpe_ratio
+    
+    def calmarRatio(self):
+        # Calculate annualized return
+        
+        total_return = (self.value[-1] - self.value[0]) / self.value[0]
+        days = len(self.value)
+        annualized_return = (1 + total_return) ** (252/days) - 1
+        
+        # Calculate maximum drawdown
+        running_max = np.maximum.accumulate(self.value)
+        drawdowns = (self.value - running_max) / running_max
+        max_drawdown = abs(min(drawdowns))
+        
+        # Calculate Calmar ratio
+        calmar_ratio = annualized_return / max_drawdown if max_drawdown != 0 else 0
+        
+        return calmar_ratio

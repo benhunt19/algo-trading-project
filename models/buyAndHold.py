@@ -27,7 +27,6 @@ class BuyAndHoldModel(ForecastModel):
         super().__init__(data=data, timeseries=timeseries) # self.data, self.timeseries, self.results, self.forecastData, self.name
         self.name = 'BUY_AND_HOLD'
         self.model = None
-        self.results
     
     def fitModel(self) -> None:
         pass

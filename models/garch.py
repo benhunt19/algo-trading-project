@@ -118,7 +118,7 @@ class GarchModel(ForecastModel):
         return self.forecastData.mean.iloc[-1]
         # return self.forecastData.mean.iloc[-steps:]
     
-    # Review
+    # Review - turned off as data format is different
     def plot(self) -> None:
         pass
     

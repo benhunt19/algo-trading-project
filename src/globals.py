@@ -1,2 +1,3 @@
 SPTL_DATA_PATH = './data/SPTL_2023.csv'
 SPTL_DATA_PATH_LOOKBACK = './data/SPTL_2022_2023.csv'
+RESULTS_PATH = './data/results'

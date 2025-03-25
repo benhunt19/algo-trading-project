@@ -33,11 +33,11 @@ class ModelTestingFramework:
         self.data = data
         self.timeseries = timeseries
         self.riskNeutral = riskNeutral
-                    
-    def testModels(self, lookbackWindow, startIndex, endIndex, shortLookForward=1, longLookForward=10, plotOnModuloIndex=10, verbose=True, plot=True, livePlot=False):
+        
+    def testModel(self, modelMeta, lookbackWindow, startIndex, endIndex, longLookForward=10, plotOnModuloIndex=10, verbose=True, plot=True, livePlot=False) -> Portfolio:
         """
         Description:
-            Run each model over the timeseries data to create a long/short portfolio strategy
+            Run a model over the timeseries data to create a long/short portfolio strategy
         Parameters:
             lookbackWindow (int): Number of days for the model to lookback over when fitting, (np.inf for maximum on data)
             startIndex (int): The starting index of the data to forecast from
@@ -47,126 +47,159 @@ class ModelTestingFramework:
         # How many total days to run algorithm over
         forcastLength = endIndex - startIndex
         
-        # For each model
-        for modelMeta in self.models:
-            
-            # Create portfolio instance and start live plot
-            portfolio = Portfolio(starting_cap=self.starting_cap, leverage=self.leverage, length=forcastLength)
-            if livePlot:
-                portfolio.startLivePlot()
-            
-            ratingArray = np.zeros(forcastLength)
-            
-            # early skip if not enabled
-            if not modelMeta['enabled']:
-                continue
-            
-            print(f'Running For Model:')
-            pprint(modelMeta)
+        portfolio = Portfolio(starting_cap=self.starting_cap, leverage=self.leverage, length=forcastLength)
+        if livePlot:
+            portfolio.startLivePlot()
+        
+        ratingArray = np.zeros(forcastLength)
+        
+        # Check for lookbackWindowOverride
+        if 'lookbackWindowOverride' in modelMeta.keys() and modelMeta['lookbackWindowOverride'] is not None:
+            lookbackWindow = modelMeta['lookbackWindowOverride']
+        
+        # early skip if not enabled
+        if not modelMeta['enabled']:
+            return
+        
+        print(f'Running For Model:')
+        pprint(modelMeta)
 
-            # For each forward looking timestep
-            for i in range(forcastLength):
+        # For each forward looking timestep
+        for i in range(forcastLength):
+            
+            if verbose:
+                print('\n')
+            
+            tmpStartIndex = startIndex + i - lookbackWindow if lookbackWindow != np.inf else 0
+            tmpEndIndex = startIndex + i
+            tmpTrainData = self.data.iloc[ tmpStartIndex : tmpEndIndex]
+            tmpTrainTimeseries = self.timeseries.iloc[ tmpStartIndex : tmpEndIndex]
+            
+            dayStdDev = tmpTrainData.std()
+            if verbose:
+                print(f'Training standard deviation: {dayStdDev}')
+            
+            # Create model and fit to lookback data
+            m = modelMeta['model'](
+                data=tmpTrainData,
+                timeseries=tmpTrainTimeseries,
+                **modelMeta['kwargs']
+            )
+            
+            # Model Override for the lookforward
+            if m.lookForwardOverride is not None:
+                longLookForward = m.lookForwardOverride
+            
+            # Foreast Lookback windows
+            longLookForwardData = m.forecast(steps=longLookForward)
+            
+            longLookForwardDataDiff = longLookForwardData.iloc[-1] - longLookForwardData.iloc[0]
+            if verbose:
+                print('longLookForwardDataDiff: ', longLookForwardDataDiff)
+                print(longLookForwardData)
                 
-                if verbose:
-                    print('\n')
-                
-                tmpStartIndex = startIndex + i - lookbackWindow if lookbackWindow != np.inf else 0
-                tmpEndIndex = startIndex + i
-                tmpTrainData = self.data.iloc[ tmpStartIndex : tmpEndIndex]
-                tmpTrainTimeseries = self.timeseries.iloc[ tmpStartIndex : tmpEndIndex]
-                
-                dayStdDev = tmpTrainData.std()
-                if verbose:
-                    print(f'Training standard deviation: {dayStdDev}')
-                
-                # Create model and fit to lookback data
-                m = modelMeta['model'](
-                    data=tmpTrainData,
-                    timeseries=tmpTrainTimeseries,
-                    **modelMeta['kwargs']
-                )
-                
-                # Model Override for the lookforward
-                if m.lookForwardOverride is not None:
-                    longLookForward = m.lookForwardOverride
-                
-                # Foreast Lookback windows
-                longLookForwardData = m.forecast(steps=longLookForward)
-                
-                longLookForwardDataDiff = longLookForwardData.iloc[-1] - longLookForwardData.iloc[0]
-                if verbose:
-                    print('longLookForwardDataDiff: ', longLookForwardDataDiff)
-                    print(longLookForwardData)
-                    
-                
-                # Change this to check for m.useLookForwardDiff
-                
-                if not m.useLookForwardDiff:
-                    deltaAfterN = longLookForwardData.iloc[-1] - tmpTrainData.iloc[-1]
-                else:
-                    deltaAfterN = longLookForwardDataDiff
-                
+            
+            # Change this to check for m.useLookForwardDiff
+            
+            if not m.useLookForwardDiff:
+                deltaAfterN = longLookForwardData.iloc[-1] - tmpTrainData.iloc[-1]
+            else:
+                deltaAfterN = longLookForwardDataDiff
+            
+            # Check if future comparison is within range of dataset
+            if tmpEndIndex + longLookForward < len(self.data):
                 actualDeltaAfterN = self.data.iloc[tmpEndIndex + longLookForward] - tmpTrainData.iloc[-1]
+            else:
+                # Out of sample, hence no information on actual delta to compare to
+                actualDeltaAfterN = 0
+            
+            m.actualForwardData = self.data.iloc[tmpEndIndex : tmpEndIndex + longLookForward]
+            
+            if verbose:                
+                print("DELTA: ", deltaAfterN)
+                print("ACTUAL DELTA: ", actualDeltaAfterN)
+            
+            # Get the sign of the delta after N days
+            if np.sign(deltaAfterN) == np.sign(actualDeltaAfterN):
+                ratingArray[i] = 1
+            
+            if i % plotOnModuloIndex == 0:
+                pass
+                # m.plot()
+            
+            # Find realised returns going into the day (as a percentage) where tmpEndIndex is the index of the day before (last day for training)
+            realisedReturns = ( self.data.iloc[ tmpEndIndex + 1 ] - self.data.iloc[ tmpEndIndex ] ) / self.data.iloc[ tmpEndIndex ]
+            
+            if verbose:
+                print('realisedReturns: ', realisedReturns)
                 
-                m.actualForwardData = self.data.iloc[tmpEndIndex : tmpEndIndex + longLookForward]
-                
-                if verbose:                
-                    print("DELTA: ", deltaAfterN)
-                    print("ACTUAL DELTA: ", actualDeltaAfterN)
-                
-                # Get the sign of the delta after N days
-                if np.sign(deltaAfterN) == np.sign(actualDeltaAfterN):
-                    ratingArray[i] = 1
-                
-                if i % plotOnModuloIndex == 0:
-                    pass
-                    # m.plot()
-                
-                # Find realised returns going into the day (as a percentage) where tmpEndIndex is the index of the day before (last day for training)
-                realisedReturns = ( self.data.iloc[ tmpEndIndex + 1 ] - self.data.iloc[ tmpEndIndex ] ) / self.data.iloc[ tmpEndIndex ]
-                
-                if verbose:
-                    print('realisedReturns: ', realisedReturns)
+            # Process day in the portfolio
+            portfolio.processDay(
+                returns=realisedReturns,
+                nextDayPredictedReturns=deltaAfterN,
+                riskFreeRate=self.riskNeutral[tmpEndIndex],
+                standardDeviation=dayStdDev,
+                threshold=modelMeta['deltaThreshold'],
+                verbose=False,
+            )
+            
+            # if i % 25 == 0:
+            #     m.plot()
+            
+            # Clear portfolio data
+            del m
+            portfolio.stockData[i] = self.data.iloc[tmpEndIndex + 1]
+            
+            if livePlot:
+                portfolio.updatePlot()
+        
+        # Calculate how many signs were correct
+        print(f"Direction Correctness: ", ratingArray.mean())
+        portfolio.stockData = self.data.iloc[startIndex : endIndex]
+        
+        print("Final value:")
+        print(portfolio.totalCapitalOnDay(portfolio.currentDayIndex - 1))
+        
+        print("Final Returns on Original:")
+        finalReturns = (portfolio.totalCapitalOnDay(portfolio.currentDayIndex - 1) - portfolio.starting_leveraged_cap) / portfolio.starting_cap
+        print(finalReturns)
+        
+        print('sharpeRatio: ', portfolio.sharpeRatio())
+        print('calmarRatio: ', portfolio.calmarRatio())
+        print('LookbackWindow: ', lookbackWindow)
+        
+        if plot:
+            portfolio.plot()
+        
+        return portfolio
+    
                     
-                # Process day in the portfolio
-                portfolio.processDay(
-                    returns=realisedReturns,
-                    nextDayPredictedReturns=deltaAfterN,
-                    riskFreeRate=self.riskNeutral[tmpEndIndex],
-                    standardDeviation=dayStdDev,
-                    threshold=modelMeta['deltaThreshold'],
-                    verbose=False
+    def testModels(self, lookbackWindow, startIndex, endIndex, longLookForward=10, plotOnModuloIndex=10, verbose=True, plot=True, livePlot=False) -> None:
+        """
+        Description:
+            Run self.testModel for each modelMeta in self.models
+        Parameters:
+            lookbackWindow (int): Number of days for the model to lookback over when fitting, (np.inf for maximum on data)
+            startIndex (int): The starting index of the data to forecast from
+            endIndex (int): The final index of the data to forecast up until
+        """        
+        return [
+            self.testModel(
+                modelMeta=modelMeta,
+                lookbackWindow=lookbackWindow,
+                startIndex=startIndex,
+                endIndex=endIndex,
+                longLookForward=longLookForward,
+                plotOnModuloIndex=plotOnModuloIndex,
+                verbose=verbose,
+                plot=plot, 
+                livePlot=livePlot
                 )
-                
-                # if i % 25 == 0:
-                #     m.plot()
-                
-                # Clear portfolio data
-                del m
-                portfolio.stockData[i] = self.data.iloc[tmpEndIndex + 1]
-                
-                if livePlot:
-                    portfolio.updatePlot()
-            
-            # Calculate how many signs were correct
-            print(f"Direction Correctness: ", ratingArray.mean())
-            portfolio.stockData = self.data.iloc[startIndex : endIndex]
-            
-            print("Final value:")
-            print(portfolio.totalCapitalOnDay(portfolio.currentDayIndex - 1))
-            
-            print("Final Returns on Original:")
-            finalReturns = (portfolio.totalCapitalOnDay(portfolio.currentDayIndex - 1) - portfolio.starting_leveraged_cap) / portfolio.starting_cap
-            print(finalReturns)
-            
-            print('sharpeRatio: ', portfolio.sharpeRatio())
-            print('LookbackWindow: ', lookbackWindow)
-            
-            if plot:
-                portfolio.plot()
+            for modelMeta in self.models
+        ]
     
     @staticmethod
-    def modelMetaBuilder(model, thresholds, kwargs={}) -> list[dict]:
+    def modelMetaBuilder(model, thresholds, kwargs={}, lookbackWindowOverride=None) -> list[dict]:
         """
         Description:
             Builds model meta to be passed into self.testModels
@@ -177,6 +210,7 @@ class ModelTestingFramework:
                 'model': model,
                 'kwargs': kwargs,
                 'enabled': True,
+                'lookbackWindowOverride': lookbackWindowOverride,
             } for threshold in thresholds
         ]
         
@@ -277,6 +311,7 @@ if __name__ == "__main__":
         }
     )
     
+    # GOOD ONE
     modelTestMeta11 = ModelTestingFramework.modelMetaBuilder(
         model=GamModel,
         thresholds=np.linspace(0.05, 0.3, 5),
@@ -289,32 +324,8 @@ if __name__ == "__main__":
         }
     )
     
-    modelTestMeta12 = ModelTestingFramework.modelMetaBuilder(
-        model=GamModel,
-        thresholds=np.linspace(0.1, 1, 5),
-        kwargs={
-            'weeklySeasonality': False,
-            'dailySeasonality': False,
-            'lookForwardOverride': 2,
-            'useLookForwardDiff': False,
-            'changepointPriorScale': 0.01
-        }
-    )
-    
-    modelTestMeta13 = ModelTestingFramework.modelMetaBuilder(
-        model=GamModel,
-        thresholds=np.linspace(0.1, 1, 5),
-        kwargs={
-            'weeklySeasonality': False,
-            'dailySeasonality': False,
-            'lookForwardOverride': 10,
-            'useLookForwardDiff': False,
-            'changepointPriorScale': 0.05
-        }
-    )
-    
     # combiMeta = modelTestMeta3 + modelTestMeta4
-    combiMeta =  modelTestMeta11 + modelTestMeta12 + modelTestMeta13 
+    combiMeta =  modelTestMeta11
     
     data = pd.read_csv(SPTL_DATA_PATH_LOOKBACK)
     data_length = len(data)
@@ -324,16 +335,16 @@ if __name__ == "__main__":
     mft = ModelTestingFramework(
         leverage=leverage,
         starting_cap=starting_cap,
-        models=modelTestMeta4,
+        models=modelTestMeta11,
         data=data['Close'],
         timeseries=data['date_string'],
         riskNeutral=data['daily_risk_free']
     )
     
     testModelDicts = {
-        'lookbackWindow': np.inf, 
+        'lookbackWindow': 150, 
         'startIndex': 250,
-        'endIndex': 490,
+        'endIndex': 500,
         'plotOnModuloIndex': 40,
         'longLookForward': 6,
         'verbose': False,
