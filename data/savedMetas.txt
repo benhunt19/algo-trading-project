@@ -1,0 +1,29 @@
+{'deltaThreshold': np.float64(0.05),
+ 'enabled': True,
+ 'kwargs': {'changepointPriorScale': 0.1,
+            'dailySeasonality': False,
+            'lookForwardOverride': 5,
+            'useLookForwardDiff': True,
+            'weeklySeasonality': False},
+ 'model': <class 'models.prophet.GamModel'>}
+Direction Correctness:  0.5673469387755102
+Final value:
+1051465.4884176727
+Final Returns on Original:
+0.5146548841767269
+sharpeRatio:  0.46940134463009225
+LookbackWindow:  150
+
+
+Running For Model:
+{'deltaThreshold': np.float64(0.15),
+ 'enabled': True,
+ 'kwargs': {'lookForwardOverride': 10, 'p': 2, 'q': 2},
+ 'model': <class 'models.garch.GarchModel'>}
+Direction Correctness:  0.5041666666666667
+Final value:
+1089279.012367943
+Final Returns on Original:
+0.8927901236794307
+sharpeRatio:  0.7301354570091747
+LookbackWindow:  inf

@@ -88,7 +88,6 @@ class Portfolio:
                 if self.thetas[self.currentDayIndex] < self.totalCapitalOnDay():
                     
                     # The strength of the position needs to be determined by the strength of the signal
-                    # buyStrength = 0.7
                     
                     buyStrength = min(nextDayPredictedReturns / self.maxPredictedReturn, 1)
                     dayCapStart = self.totalCapitalOnDay()
@@ -115,9 +114,6 @@ class Portfolio:
                     print("SELL - GOING SHORT")
                 
                 if abs(self.thetas[self.currentDayIndex]) < self.totalCapitalOnDay():
-                    
-                    # The strength of the position needs to be determined by the strength of the signal
-                    # sellStrength = 1
                     
                     sellStrength = min(abs(nextDayPredictedReturns) / self.maxPredictedReturn, 1)
                     dayCapStart = self.totalCapitalOnDay()
@@ -255,17 +251,21 @@ class Portfolio:
         
         return sharpe_ratio
     
+    def maxDrawdown(self):
+        """Calculate the maximum drawdown"""
+        running_max = np.maximum.accumulate(self.value)
+        drawdowns = (self.value - running_max) / running_max
+        return abs(min(drawdowns))
+    
     def calmarRatio(self):
-        # Calculate annualized return
-        
+        """Calculate the Calmar ratio"""
+        # Calculate total and annualized returns
         total_return = (self.value[-1] - self.value[0]) / self.value[0]
         days = len(self.value)
         annualized_return = (1 + total_return) ** (252/days) - 1
         
-        # Calculate maximum drawdown
-        running_max = np.maximum.accumulate(self.value)
-        drawdowns = (self.value - running_max) / running_max
-        max_drawdown = abs(min(drawdowns))
+        # Get max drawdown
+        max_drawdown = self.maxDrawdown()
         
         # Calculate Calmar ratio
         calmar_ratio = annualized_return / max_drawdown if max_drawdown != 0 else 0

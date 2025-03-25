@@ -165,6 +165,7 @@ class ModelTestingFramework:
         print(finalReturns)
         
         print('sharpeRatio: ', portfolio.sharpeRatio())
+        print('maxDrawdown: ', portfolio.maxDrawdown())
         print('calmarRatio: ', portfolio.calmarRatio())
         print('LookbackWindow: ', lookbackWindow)
         

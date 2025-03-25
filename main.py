@@ -77,15 +77,18 @@ if __name__ == "__main__":
     
     print('Saving results')
     
-    for i, portfolio in enumerate(portfolios):
-        # Save portfolio metrics to CSV
-        portfolio_data = pd.DataFrame({
-            'value': portfolio.value,
-            'thetas': portfolio.thetas,
-            'thetaPrime': portfolio.thetaPrime,
-            'PnL': portfolio.PnL,
-            'capitalGains': portfolio.capitalGains,
-        })
-        portfolio_path = f"{RESULTS_PATH}/portfolio_{names[i]}.csv"
-        portfolio_data.to_csv(portfolio_path, index=False)
-        print(f"Saved portfolio data to {portfolio_path}")
+    saveData = False
+    
+    if saveData:
+        for i, portfolio in enumerate(portfolios):
+            # Save portfolio metrics to CSV
+            portfolio_data = pd.DataFrame({
+                'value': portfolio.value,
+                'thetas': portfolio.thetas,
+                'thetaPrime': portfolio.thetaPrime,
+                'PnL': portfolio.PnL,
+                'capitalGains': portfolio.capitalGains,
+            })
+            portfolio_path = f"{RESULTS_PATH}/portfolio_{names[i]}.csv"
+            portfolio_data.to_csv(portfolio_path, index=False)
+            print(f"Saved portfolio data to {portfolio_path}")
