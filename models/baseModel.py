@@ -38,6 +38,3 @@ class ForecastModel:
         plt.legend(legend)             
         plt.title(self.name)
         plt.show()
-
-        
-    # Potentially add a data cleaning method to ensure there is a column for the timesseries and one for the value

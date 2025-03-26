@@ -2,15 +2,12 @@ from models.baseModel import ForecastModel
 import pandas as pd
 from arch import arch_model
 import matplotlib.pyplot as plt
-from statsmodels.tsa.stattools import adfuller, acf, pacf
+from statsmodels.tsa.stattools import adfuller
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
-import warnings
 from src.globals import SPTL_DATA_PATH
 import seaborn as sns
-
 from statsmodels.tsa.stattools import q_stat
 from statsmodels.stats.diagnostic import het_arch
-# from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 import numpy as np
 class GarchModel(ForecastModel):
     """
@@ -24,10 +21,9 @@ class GarchModel(ForecastModel):
         q (int): Order of the ARCH terms (β)
     """
     def __init__(self, data, timeseries, p=2, q=2, lookForwardOverride=None) -> None:
-        # Initialize the parent class
         super().__init__(data=data, timeseries=timeseries) # self.data, self.timeseries, self.results, self.forecastData, self.name
         self.name = 'GARCH'
-        
+
         self.p = p
         self.q = q
         self.model = arch_model(self.data, vol='Garch', p=self.p, q=self.q)
@@ -112,12 +108,8 @@ class GarchModel(ForecastModel):
             Forecast using historical data based on arch inbuilt forecasting algo
         """
         self.forecastData = self.results.forecast(horizon=steps)
-        # Get the mean forecast values as a series
-        # print(self.forecastData.simulations())
-        # print(self.forecastData.mean.iloc[-steps:])
         return self.forecastData.mean.iloc[-1]
-        # return self.forecastData.mean.iloc[-steps:]
-    
+        
     # Review - turned off as data format is different
     def plot(self) -> None:
         pass
@@ -143,8 +135,6 @@ if __name__ == "__main__":
         p=p,
         q=q
     )
-    
-    # model1.fitModel()
     
     f = model1.forecast()
     print(f)

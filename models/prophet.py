@@ -60,12 +60,9 @@ class GamModel(ForecastModel):
         plt.rcParams["figure.figsize"] = (12, 6)
         fig = self.model.plot(self.forecastResponse)
         # changepoint_plot = add_changepoints_to_plot(fig.gca(), self.model, self.forecastResponse)
-        # plt.figure(figsize=(12, 6))
-        # plt.figure(figsize=(15, 8))
         plt.subplots_adjust(top=0.9)
         sns.set_style('darkgrid')
         legend = ['Historic Actual', 'Piecewise Linear Mean', 'Confidence Interval', ]
-        # plt.legend(legend)
         plt.title('GAM (Prophet) Forecast Example')
         plt.xlabel('Time')
         plt.ylabel('SPTL Price ($)')
@@ -84,7 +81,6 @@ if __name__ == "__main__":
 
     train_pct = 0.5
     
-    # file_name = '../data/SPTL_2023.csv'
     data = pd.read_csv(SPTL_DATA_PATH)
     print("\nDataset Info:")
     print(data.info())

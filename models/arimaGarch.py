@@ -12,7 +12,7 @@ from src.globals import SPTL_DATA_PATH
 class ArimaGarchModel(ForecastModel):
     """
     Description:
-        ARIMA (AutoRegressive Integrated Moving Average) and GARCH (Generalized Autoregressive Conditional Heteroskedasticity) model.
+        ARIMA-GARCH (AutoRegressive Integrated Moving Average) and GARCH (Generalized Autoregressive Conditional Heteroskedasticity) model.
         
     Parameters:
         data (float[]): History of timeseries data to base forecast upon

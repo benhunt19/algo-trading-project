@@ -1,26 +1,15 @@
 from models.baseModel import ForecastModel
 import pandas as pd
-from statsmodels.tsa.arima.model import ARIMA
-# https://www.statsmodels.org/stable/generated/statsmodels.tsa.arima.model.ARIMA.html#statsmodels.tsa.arima.model.ARIMA
-from statsmodels.tsa.stattools import arma_order_select_ic
-import matplotlib.pyplot as plt
-from statsmodels.tsa.stattools import adfuller
-from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
-import warnings
-from statsmodels.tools.sm_exceptions import ConvergenceWarning, ModelWarning
 from src.globals import SPTL_DATA_PATH
 
 class BuyAndHoldModel(ForecastModel):
     """
     Description:
-        ARIMA (AutoRegressive Integrated Moving Average) based model built upon statsmodels.tsa library
+        Buy and Hold - Signals to only ever keep the stock
         
     Parameters:
         data (float[]): History of timeseries data to base forecast upon
         timeseries (datetime[]): Timeseries index for the data
-        AR_order (int): Auto Regressive look back window, AR(1), AR(2) etc...
-        differencing_order (int): Differencing (integrating) order
-        MA_order (int): Moving Average lookback window MA(1), MA(2) etc...
     """
     def __init__(self, data, timeseries) -> None:
         # Initialize the parent class

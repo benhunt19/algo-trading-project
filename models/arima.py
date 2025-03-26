@@ -6,7 +6,6 @@ from statsmodels.tsa.stattools import arma_order_select_ic, adfuller, kpss
 import matplotlib.pyplot as plt
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 import warnings
-from statsmodels.tools.sm_exceptions import ConvergenceWarning, ModelWarning
 from src.globals import SPTL_DATA_PATH
 
 class ArimaModel(ForecastModel):
@@ -133,11 +132,9 @@ if __name__ == "__main__":
         MA_order=MA_order
     )
     
-    # model1.fitModel()
     
-    # f = model1.forecast()
-    # print(f)
+    f = model1.forecast()
     
     model1.runChecks()
     
-    # model1.plot()
+    model1.plot()
