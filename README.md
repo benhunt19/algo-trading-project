@@ -7,6 +7,8 @@ This project is part of the Algorithmic Trading COMP0051 course at UCL. The goal
 1. ARIMA
 2. GARCH
 3. GAM (Prophet)
+4. Buy and Hold
+5. Arima Garch
 
 ## Author
 

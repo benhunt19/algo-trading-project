@@ -107,7 +107,7 @@ class ArimaModel(ForecastModel):
         return f"ARIMA Model: AR({self.AR_order}), I({self.differencing_order}), MA({self.MA_order})"
         
     # REVISIT THIS
-    def orderSelection(self, data, max_ar=4, max_ma=4, info_criteria=['aic', 'bic']):
+    def orderSelection(self, data, max_ar=3, max_ma=3, info_criteria=['aic', 'bic']):
         self.selectionInfo = arma_order_select_ic(data, max_ar, max_ma, info_criteria)
         return self.selectionInfo
 
