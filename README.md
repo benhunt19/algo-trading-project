@@ -10,6 +10,8 @@ This project is part of the Algorithmic Trading COMP0051 course at UCL. The goal
 4. Buy and Hold
 5. Arima Garch
 
+![Example PnL](assets/results_vt_total.png)
+
 ## Author
 
 **Ben Hunt**  
