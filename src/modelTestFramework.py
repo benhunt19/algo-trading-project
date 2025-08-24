@@ -48,7 +48,7 @@ class ModelTestingFramework:
             lookbackWindow,
             startIndex,
             endIndex, 
-            longLookForward=10,
+            longLookForward=20,
             plotOnModuloIndex=10,
             verbose=True,
             plot=True,
@@ -62,7 +62,7 @@ class ModelTestingFramework:
             startIndex (int): The starting index of the data to forecast from
             endIndex (int): The final index of the data to forecast up until
         """        
-
+        
         forcastLength = endIndex - startIndex
         
         portfolio = Portfolio(starting_cap=self.starting_cap, leverage=self.leverage, length=forcastLength)
@@ -76,11 +76,7 @@ class ModelTestingFramework:
             print("Not ML based")
             # How many total days to run algorithm over
 
-            
-            # Check for lookbackWindowOverride
-            if 'lookbackWindowOverride' in modelMeta.keys() and modelMeta['lookbackWindowOverride'] is not None:
-                lookbackWindow = modelMeta['lookbackWindowOverride']
-            
+                        
             # early skip if not enabled
             if not modelMeta['enabled']:
                 return
@@ -202,15 +198,15 @@ class ModelTestingFramework:
                 lookbackForSingleValue = 100
                 x_test = self.data.iloc[startIndex + i - lookbackForSingleValue: startIndex + i].values
                 
-                print(f"x_test {x_test}")
-                print(f"x_test.shape {x_test.shape}")
+                # print(f"x_test {x_test}")
+                # print(f"x_test.shape {x_test.shape}")
                 
                 forecast = m.forecast(
                     x_test=x_test
                 )
                 
-                print(f"Forecast: {forecast}")
-                print(f"Forecast Type: {type(forecast)}")
+                # print(f"Forecast: {forecast}")
+                # print(f"Forecast Type: {type(forecast)}")
                 
                 # Calculate forecast and determine next day's predicted returns
                 deltaAfterN = (forecast - x_test[-1]) / x_test[-1]  # Assuming forecast is the predicted change
@@ -221,7 +217,7 @@ class ModelTestingFramework:
                 # Calculate realised returns for the next day
                 realisedReturns = (self.data.iloc[tmpEndIndex + 1] - self.data.iloc[tmpEndIndex]) / self.data.iloc[tmpEndIndex]
 
-                print(f"realisedReturns: {realisedReturns}")
+                # print(f"realisedReturns: {realisedReturns}")
                 
                 if verbose:
                     print('realisedReturns: ', realisedReturns)
@@ -259,21 +255,30 @@ class ModelTestingFramework:
                 **modelMeta['kwargs']
             )
             
-            x_test=self.data.iloc[startIndex : endIndex].values
-            
+            lookback = modelMeta['kwargs']['lookback']
+            x_test=self.data.iloc[startIndex : endIndex - lookback - longLookForward].values
+            y_test=self.data.iloc[startIndex + lookback + longLookForward : endIndex].values
+                        
             forecast = m.forecast(
                 x_test=x_test
             )
             
             print(f"Forecast: {forecast}")
+            print(f"Forecast.shape: {forecast.shape}")
             print(f"Forecast Type: {type(forecast)}")
+            print(f"Forecast length: {len(forecast)}")
+            print(f"y_test length: {len(y_test)}")
             
             # For ML_TRAIN_ONCE we need to process each forecast point individually
             # First, let's get the standard deviation for risk calculations
             dayStdDev = x_train.std()
 
+            # Make sure we only process the minimum length of forecast and y_test
+            process_length = min(len(forecast), len(y_test))
+            print(f"Processing {process_length} points")
+            
             # Process each forecast point with the correct window alignment
-            for i, pred_value in enumerate(forecast):
+            for i in range(process_length):
                 # Current index in the original data
                 curr_idx = startIndex + i
                 
@@ -281,8 +286,9 @@ class ModelTestingFramework:
                 if curr_idx + 1 >= len(self.data):
                     break
                 
-                # Get the actual value at the current point
-                actual_value = x_test[i + 100 + 20]
+                # Get the actual value
+                actual_value = y_test[i]
+                pred_value = forecast[i]
                 
                 # Calculate predicted return
                 deltaAfterN = (pred_value - actual_value) / actual_value
@@ -294,7 +300,7 @@ class ModelTestingFramework:
                 if np.sign(deltaAfterN) == np.sign(realisedReturns):
                     ratingArray[i] = 1
                     
-                if verbose and False:
+                if verbose and i % 20 == 0:
                     print(f'Day {i}: Actual: {actual_value}, Prediction: {pred_value}')
                     print(f'Predicted return: {deltaAfterN}, Realized return: {realisedReturns}')
                 
@@ -305,7 +311,7 @@ class ModelTestingFramework:
                     riskFreeRate=self.riskNeutral[curr_idx],
                     standardDeviation=dayStdDev,
                     threshold=modelMeta['deltaThreshold'],
-                    verbose=False,
+                    verbose=True,
                 )
                 
                 # Update stock data
@@ -313,35 +319,6 @@ class ModelTestingFramework:
                 
                 if livePlot:
                     portfolio.updatePlot()
-            
-            for f in forecast:
-                
-                # Calculate forecast and determine next day's predicted returns
-                deltaAfterN = (f - x_test[-1]) / x_test[-1]  # Assuming forecast is the predicted change
-                
-                print(f"deltaAfterN: {deltaAfterN}")
-                print(f"deltaAfterN type: {type(deltaAfterN)}")
-
-                # Calculate realised returns for the next day
-                tmpEndIndex = startIndex + i
-                realisedReturns = (self.data.iloc[tmpEndIndex + 1] - self.data.iloc[tmpEndIndex]) / self.data.iloc[tmpEndIndex]
-
-                print(f"realisedReturns: {realisedReturns}")
-                
-                if verbose:
-                    print('realisedReturns: ', realisedReturns)
-                    print('predicted deltaAfterN: ', deltaAfterN)
-
-                # Process day in the portfolio
-                portfolio.processDay(
-                    returns=realisedReturns,
-                    nextDayPredictedReturns=deltaAfterN,
-                    riskFreeRate=self.riskNeutral[tmpEndIndex],
-                    standardDeviation=dayStdDev,
-                    threshold=modelMeta['deltaThreshold'],
-                    verbose=False,
-                )
-                
             
         # Calculate how many signs were correct
         print(f"Direction Correctness: ", ratingArray.mean())
@@ -365,7 +342,7 @@ class ModelTestingFramework:
         return portfolio
     
                     
-    def testModels(self, lookbackWindow, startIndex, endIndex, longLookForward=10, plotOnModuloIndex=10, verbose=True, plot=True, livePlot=False) -> None:
+    def testModels(self, lookbackWindow, startIndex, endIndex, longLookForward=20, plotOnModuloIndex=10, verbose=True, plot=True, livePlot=False) -> None:
         """
         Description:
             Run self.testModel for each modelMeta in self.models
@@ -391,7 +368,7 @@ class ModelTestingFramework:
         ]
     
     @staticmethod
-    def modelMetaBuilder(model, thresholds, kwargs={}, lookbackWindowOverride=None, modelTrainType : ModelTrainType = ModelTrainType.ALGO) -> list[dict]:
+    def modelMetaBuilder(model, thresholds, kwargs={}, modelTrainType : ModelTrainType = ModelTrainType.ALGO) -> list[dict]:
         """
         Description:
             Builds model meta to be passed into self.testModels
@@ -402,7 +379,6 @@ class ModelTestingFramework:
                 'model': model,
                 'kwargs': kwargs,
                 'enabled': True,
-                'lookbackWindowOverride': lookbackWindowOverride,
                 'modelTrainType': modelTrainType
             } for threshold in thresholds
         ]

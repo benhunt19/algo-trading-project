@@ -19,7 +19,7 @@ if __name__ == "__main__":
     
     modelTestMeta1 = ModelTestingFramework.modelMetaBuilder(
         model=GarchModel,
-        thresholds=[0.15, 0.3],
+        thresholds=[0.15],
         kwargs={
             'p': 2,
             'q': 2,
@@ -36,7 +36,6 @@ if __name__ == "__main__":
     modelTestMeta3 = ModelTestingFramework.modelMetaBuilder(
         model=GamModel,
         thresholds=[0.05],
-        lookbackWindowOverride=150,
         kwargs={
             'weeklySeasonality': False,
             'dailySeasonality': False,
@@ -48,8 +47,7 @@ if __name__ == "__main__":
     
     modelTestMeta4 = ModelTestingFramework.modelMetaBuilder(
         model=LinearRegressionModel,
-        thresholds=[1e-5, 1e-5, 1e-7],
-        lookbackWindowOverride=1000,
+        thresholds=[1e-7],
         kwargs={
             'lookForwardHorizon': 20,
             'lookbackTrainWindow': 1000
@@ -60,21 +58,20 @@ if __name__ == "__main__":
     
     modelTestMeta5 = ModelTestingFramework.modelMetaBuilder(
         model=LSTMModel,
-        thresholds=[1e-5],
-        lookbackWindowOverride=1000,
+        thresholds=[0],
         kwargs={
             'lookForwardHorizon': 20,
             'lookback': 100,
-            'lookForwardHorizon': 20,
-            'epochs': 1,
-            'batch_size':32
+            'epochs': 5,
+            'batch_size':128
         },
         modelTrainType=ModelTrainType.ML_TRAIN_ONCE
     )
     
     # combiMeta =  modelTestMeta1 + modelTestMeta3
     # combiMeta =  modelTestMeta4
-    combiMeta =  modelTestMeta5
+    # combiMeta = modelTestMeta1 + modelTestMeta4 + modelTestMeta5
+    combiMeta = modelTestMeta5
     
     # data = pd.read_csv(SPTL_DATA_PATH_LOOKBACK)
     # data_length = len(data)

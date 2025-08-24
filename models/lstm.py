@@ -80,7 +80,7 @@ class LSTMModel(ForecastModel):
         # Create sequences from the test data
         X_test, y_test = self.create_sequences(x_test_scaled, self.lookback, self.lookForwardHorizon)
         
-        print(f"X_test: {X_test}")
+        print(f"X_test.shape: {X_test.shape}")
         
         # Generate predictions
         predictions_scaled = self.model.predict(X_test, verbose=0)
