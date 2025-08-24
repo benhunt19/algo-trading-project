@@ -2,32 +2,36 @@ from src.modelTestFramework import ModelTestingFramework
 from models.arima import ArimaModel
 from models.prophet import GamModel
 from models.garch import GarchModel
+from models.linearRegression import LinearRegressionModel
+from models.lstm import LSTMModel
 from models.buyAndHold import BuyAndHoldModel
-from src.globals import (SPTL_DATA_PATH_LOOKBACK, RESULTS_PATH)
+from src.globals import (SPTL_DATA_PATH_LOOKBACK, RESULTS_PATH, AAPL_TRANSFORMED)
+from src.modelTestFramework import ModelTrainType
+
 import pandas as pd
 import numpy as np
 
 # Example code to test and run the framework
 if __name__ == "__main__":
     
-    leverage = 10
+    leverage = 1
     starting_cap = 100_000
     
     modelTestMeta1 = ModelTestingFramework.modelMetaBuilder(
         model=GarchModel,
-        thresholds=[0.15],
+        thresholds=[0.15, 0.3],
         kwargs={
             'p': 2,
             'q': 2,
-            'lookForwardOverride': 10
+            'lookForwardOverride': 20
         }
     )
     
-    modelTestMeta2 = ModelTestingFramework.modelMetaBuilder(
-        model=BuyAndHoldModel,
-        thresholds=[0.1],
-        kwargs={}
-    )
+    # modelTestMeta2 = ModelTestingFramework.modelMetaBuilder(
+    #     model=BuyAndHoldModel,
+    #     thresholds=[0.1],
+    #     kwargs={}
+    # )
     
     modelTestMeta3 = ModelTestingFramework.modelMetaBuilder(
         model=GamModel,
@@ -42,10 +46,40 @@ if __name__ == "__main__":
         }
     )
     
-    combiMeta =  modelTestMeta1 + modelTestMeta2 + modelTestMeta3
+    modelTestMeta4 = ModelTestingFramework.modelMetaBuilder(
+        model=LinearRegressionModel,
+        thresholds=[1e-5, 1e-5, 1e-7],
+        lookbackWindowOverride=1000,
+        kwargs={
+            'lookForwardHorizon': 20,
+            'lookbackTrainWindow': 1000
+        },
+        modelTrainType=ModelTrainType.ML_RETRAIN
+    )
     
-    data = pd.read_csv(SPTL_DATA_PATH_LOOKBACK)
-    data_length = len(data)
+    
+    modelTestMeta5 = ModelTestingFramework.modelMetaBuilder(
+        model=LSTMModel,
+        thresholds=[1e-5],
+        lookbackWindowOverride=1000,
+        kwargs={
+            'lookForwardHorizon': 20,
+            'lookback': 100,
+            'lookForwardHorizon': 20,
+            'epochs': 1,
+            'batch_size':32
+        },
+        modelTrainType=ModelTrainType.ML_TRAIN_ONCE
+    )
+    
+    # combiMeta =  modelTestMeta1 + modelTestMeta3
+    # combiMeta =  modelTestMeta4
+    combiMeta =  modelTestMeta5
+    
+    # data = pd.read_csv(SPTL_DATA_PATH_LOOKBACK)
+    # data_length = len(data)
+    
+    data = pd.read_csv(AAPL_TRANSFORMED)
     
     # print(data)
     
@@ -53,33 +87,30 @@ if __name__ == "__main__":
         leverage=leverage,
         starting_cap=starting_cap,
         models=combiMeta,
-        data=data['Close'],
-        timeseries=data['date_string'],
+        data=data['midprice'],
+        timeseries=data.iloc[:,0],
         riskNeutral=data['daily_risk_free']
     )
     
     testModelDicts = {
-        'lookbackWindow': 150, 
-        'startIndex': 250,
-        'endIndex': 500,
-        'plotOnModuloIndex': 40,
-        'longLookForward': 6,
+        'lookbackWindow': 1000, 
+        'startIndex': 10_000,
+        'endIndex': 20_000,
+        'plotOnModuloIndex': 10_000,
+        'longLookForward': 20,
         'verbose': False,
-        'plot': False,
+        'plot': True,
         'livePlot': False
     }
     
     portfolios = mft.testModels(**testModelDicts)
     
-    # names = [str(meta['model']) for meta in combiMeta]
-    # print(names)
     names = ['garch', 'buy_n_hold', 'gam']
-    
-    print('Saving results')
     
     saveData = False
     
     if saveData:
+        print('Saving results')
         for i, portfolio in enumerate(portfolios):
             # Save portfolio metrics to CSV
             portfolio_data = pd.DataFrame({

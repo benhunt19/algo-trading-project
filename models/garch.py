@@ -1,3 +1,7 @@
+import warnings
+from arch.univariate.base import ConvergenceWarning
+warnings.filterwarnings('ignore', category=ConvergenceWarning)
+
 from models.baseModel import ForecastModel
 import pandas as pd
 from arch import arch_model
@@ -9,6 +13,7 @@ import seaborn as sns
 from statsmodels.tsa.stattools import q_stat
 from statsmodels.stats.diagnostic import het_arch
 import numpy as np
+
 class GarchModel(ForecastModel):
     """
     Description:

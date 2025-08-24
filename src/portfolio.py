@@ -4,6 +4,9 @@ import seaborn as sns
 import time
 import pandas as pd
 
+import warnings
+warnings.filterwarnings('ignore')
+
 class Portfolio:
     """
     Description:
@@ -48,7 +51,7 @@ class Portfolio:
             threshold (float): The threshold to decide the BUY/SELL/NEUTRAL decision
             verbose (bool): Print status of each decision
         """
-        
+        # print(threshold)
         # Take a stance on the first day
         if self.currentDayIndex == 0:
             
@@ -74,6 +77,8 @@ class Portfolio:
             self.capitalGains[self.currentDayIndex] = capitalGain
             self.value[self.currentDayIndex] = self.totalCapitalOnDay(self.currentDayIndex)
             self.predictedReturns[self.currentDayIndex] = nextDayPredictedReturns
+            
+            # print(nextDayPredictedReturns)
             
             # Maintain data for the maximum predicted returns
             if abs(nextDayPredictedReturns) > self.maxPredictedReturn:

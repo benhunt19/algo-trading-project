@@ -12,8 +12,16 @@ import numpy as np
 import warnings
 from statsmodels.tools.sm_exceptions import ConvergenceWarning, ModelWarning
 from pprint import pprint
+from tqdm import tqdm
+from enum import Enum
 
 warnings.filterwarnings('ignore')
+
+class ModelTrainType(Enum):
+    ALGO = 'ALGO'
+    ML_RETRAIN = 'ML_RETRAIN'
+    ML_TRAIN_ONCE = 'ML_TRAIN_ONCE'
+
 class ModelTestingFramework:
     """
     Description:
@@ -34,7 +42,18 @@ class ModelTestingFramework:
         self.timeseries = timeseries
         self.riskNeutral = riskNeutral
         
-    def testModel(self, modelMeta, lookbackWindow, startIndex, endIndex, longLookForward=10, plotOnModuloIndex=10, verbose=True, plot=True, livePlot=False) -> Portfolio:
+    def testModel(
+            self,
+            modelMeta,
+            lookbackWindow,
+            startIndex,
+            endIndex, 
+            longLookForward=10,
+            plotOnModuloIndex=10,
+            verbose=True,
+            plot=True,
+            livePlot=False
+        ) -> Portfolio:
         """
         Description:
             Run a model over the timeseries data to create a long/short portfolio strategy
@@ -43,8 +62,7 @@ class ModelTestingFramework:
             startIndex (int): The starting index of the data to forecast from
             endIndex (int): The final index of the data to forecast up until
         """        
-        
-        # How many total days to run algorithm over
+
         forcastLength = endIndex - startIndex
         
         portfolio = Portfolio(starting_cap=self.starting_cap, leverage=self.leverage, length=forcastLength)
@@ -53,106 +71,278 @@ class ModelTestingFramework:
         
         ratingArray = np.zeros(forcastLength)
         
-        # Check for lookbackWindowOverride
-        if 'lookbackWindowOverride' in modelMeta.keys() and modelMeta['lookbackWindowOverride'] is not None:
-            lookbackWindow = modelMeta['lookbackWindowOverride']
-        
-        # early skip if not enabled
-        if not modelMeta['enabled']:
-            return
-        
-        print(f'Running For Model:')
-        pprint(modelMeta)
+        if modelMeta['modelTrainType'] == ModelTrainType.ALGO:
+            
+            print("Not ML based")
+            # How many total days to run algorithm over
 
-        # For each forward looking timestep
-        for i in range(forcastLength):
             
-            if verbose:
-                print('\n')
+            # Check for lookbackWindowOverride
+            if 'lookbackWindowOverride' in modelMeta.keys() and modelMeta['lookbackWindowOverride'] is not None:
+                lookbackWindow = modelMeta['lookbackWindowOverride']
             
-            tmpStartIndex = startIndex + i - lookbackWindow if lookbackWindow != np.inf else 0
-            tmpEndIndex = startIndex + i
-            tmpTrainData = self.data.iloc[ tmpStartIndex : tmpEndIndex]
-            tmpTrainTimeseries = self.timeseries.iloc[ tmpStartIndex : tmpEndIndex]
+            # early skip if not enabled
+            if not modelMeta['enabled']:
+                return
             
-            dayStdDev = tmpTrainData.std()
-            if verbose:
-                print(f'Training standard deviation: {dayStdDev}')
+            print(f'Running For Model:')
+            pprint(modelMeta)
+
+            # For each forward looking timestep
+            for i in tqdm(range(forcastLength), desc="Running"):
+                
+                if verbose:
+                    print('\n')
+                
+                tmpStartIndex = startIndex + i - lookbackWindow if lookbackWindow != np.inf else 0
+                tmpEndIndex = startIndex + i
+                tmpTrainData = self.data.iloc[ tmpStartIndex : tmpEndIndex]
+                tmpTrainTimeseries = self.timeseries.iloc[ tmpStartIndex : tmpEndIndex]
+                
+                dayStdDev = tmpTrainData.std()
+                if verbose:
+                    print(f'Training standard deviation: {dayStdDev}')
+                
+                # Create model and fit to lookback data
+                m = modelMeta['model'](
+                    data=tmpTrainData,
+                    timeseries=tmpTrainTimeseries,
+                    **modelMeta['kwargs']
+                )
+                
+                # Model Override for the lookforward
+                if m.lookForwardOverride is not None:
+                    longLookForward = m.lookForwardOverride
+                
+                # Foreast Lookback windows
+                longLookForwardData = m.forecast(steps=longLookForward)
+                
+                longLookForwardDataDiff = longLookForwardData.iloc[-1] - longLookForwardData.iloc[0]
+                if verbose:
+                    print('longLookForwardDataDiff: ', longLookForwardDataDiff)
+                    print(longLookForwardData)
+                    
+                
+                # Change this to check for m.useLookForwardDiff
+                
+                if not m.useLookForwardDiff:
+                    deltaAfterN = longLookForwardData.iloc[-1] - tmpTrainData.iloc[-1]
+                else:
+                    deltaAfterN = longLookForwardDataDiff
+                
+                # Check if future comparison is within range of dataset
+                if tmpEndIndex + longLookForward < len(self.data):
+                    actualDeltaAfterN = self.data.iloc[tmpEndIndex + longLookForward] - tmpTrainData.iloc[-1]
+                else:
+                    # Out of sample, hence no information on actual delta to compare to
+                    actualDeltaAfterN = 0
+                
+                m.actualForwardData = self.data.iloc[tmpEndIndex : tmpEndIndex + longLookForward]
+                
+                if verbose:                
+                    print("DELTA: ", deltaAfterN)
+                    print("ACTUAL DELTA: ", actualDeltaAfterN)
+                
+                # Get the sign of the delta after N days
+                if np.sign(deltaAfterN) == np.sign(actualDeltaAfterN):
+                    ratingArray[i] = 1
+                
+                if i % plotOnModuloIndex == 0:
+                    pass
+                    # m.plot()
+                
+                # Find realised returns going into the day (as a percentage) where tmpEndIndex is the index of the day before (last day for training)
+                realisedReturns = ( self.data.iloc[ tmpEndIndex + 1 ] - self.data.iloc[ tmpEndIndex ] ) / self.data.iloc[ tmpEndIndex ]
+                
+                if verbose:
+                    print('realisedReturns: ', realisedReturns)
+                    
+                # Process day in the portfolio
+                portfolio.processDay(
+                    returns=realisedReturns,
+                    nextDayPredictedReturns=deltaAfterN,
+                    riskFreeRate=self.riskNeutral[tmpEndIndex],
+                    standardDeviation=dayStdDev,
+                    threshold=modelMeta['deltaThreshold'],
+                    verbose=False,
+                )
+                
+                # if i % 25 == 0:
+                #     m.plot()
+                
+                # Clear portfolio data
+                del m
+                portfolio.stockData[i] = self.data.iloc[tmpEndIndex + 1]
+                
+                if livePlot:
+                    portfolio.updatePlot()
+        
+        elif modelMeta['modelTrainType'] == ModelTrainType.ML_RETRAIN:
+            print(f"ModelTrainType: {ModelTrainType.ML_RETRAIN:}")
+            print(f"Forecast Length: {forcastLength}")
             
-            # Create model and fit to lookback data
+            for i in tqdm(range(forcastLength)):
+                                
+                tmpStartIndex = startIndex + i - lookbackWindow if lookbackWindow != np.inf else 0
+                tmpEndIndex = startIndex + i
+                # This is used to train the data, the lookforwards are done with the data
+                x_train = self.data.iloc[ tmpStartIndex : tmpEndIndex].values
+                
+                dayStdDev = x_train.std()
+                
+                # Create model and fit (train) to lookback data
+                m = modelMeta['model'](
+                    data=x_train,
+                    timeseries=None,
+                    **modelMeta['kwargs']
+                )
+                
+                # Single datapoint
+                # Need to remove this hardcoded 100
+                lookbackForSingleValue = 100
+                x_test = self.data.iloc[startIndex + i - lookbackForSingleValue: startIndex + i].values
+                
+                print(f"x_test {x_test}")
+                print(f"x_test.shape {x_test.shape}")
+                
+                forecast = m.forecast(
+                    x_test=x_test
+                )
+                
+                print(f"Forecast: {forecast}")
+                print(f"Forecast Type: {type(forecast)}")
+                
+                # Calculate forecast and determine next day's predicted returns
+                deltaAfterN = (forecast - x_test[-1]) / x_test[-1]  # Assuming forecast is the predicted change
+                
+                print(f"deltaAfterN: {deltaAfterN}")
+                print(f"deltaAfterN type: {type(deltaAfterN)}")
+
+                # Calculate realised returns for the next day
+                realisedReturns = (self.data.iloc[tmpEndIndex + 1] - self.data.iloc[tmpEndIndex]) / self.data.iloc[tmpEndIndex]
+
+                print(f"realisedReturns: {realisedReturns}")
+                
+                if verbose:
+                    print('realisedReturns: ', realisedReturns)
+                    print('predicted deltaAfterN: ', deltaAfterN)
+
+                # Process day in the portfolio
+                portfolio.processDay(
+                    returns=realisedReturns,
+                    nextDayPredictedReturns=deltaAfterN,
+                    riskFreeRate=self.riskNeutral[tmpEndIndex],
+                    standardDeviation=dayStdDev,
+                    threshold=modelMeta['deltaThreshold'],
+                    verbose=False,
+                )
+
+                # Keep track of correct predictions for rating
+                if np.sign(deltaAfterN) == np.sign(realisedReturns):
+                    ratingArray[i] = 1
+
+                # Clean up and update
+                del m
+                portfolio.stockData[i] = self.data.iloc[tmpEndIndex + 1]
+
+                if livePlot:
+                    portfolio.updatePlot()
+        
+        elif modelMeta['modelTrainType'] == ModelTrainType.ML_TRAIN_ONCE:
+            print(f"Train type: {ModelTrainType.ML_TRAIN_ONCE}")
+            
+            x_train = self.data.iloc[:startIndex].values
+            
             m = modelMeta['model'](
-                data=tmpTrainData,
-                timeseries=tmpTrainTimeseries,
+                data=x_train,
+                timeseries=None,
                 **modelMeta['kwargs']
             )
             
-            # Model Override for the lookforward
-            if m.lookForwardOverride is not None:
-                longLookForward = m.lookForwardOverride
+            x_test=self.data.iloc[startIndex : endIndex].values
             
-            # Foreast Lookback windows
-            longLookForwardData = m.forecast(steps=longLookForward)
-            
-            longLookForwardDataDiff = longLookForwardData.iloc[-1] - longLookForwardData.iloc[0]
-            if verbose:
-                print('longLookForwardDataDiff: ', longLookForwardDataDiff)
-                print(longLookForwardData)
-                
-            
-            # Change this to check for m.useLookForwardDiff
-            
-            if not m.useLookForwardDiff:
-                deltaAfterN = longLookForwardData.iloc[-1] - tmpTrainData.iloc[-1]
-            else:
-                deltaAfterN = longLookForwardDataDiff
-            
-            # Check if future comparison is within range of dataset
-            if tmpEndIndex + longLookForward < len(self.data):
-                actualDeltaAfterN = self.data.iloc[tmpEndIndex + longLookForward] - tmpTrainData.iloc[-1]
-            else:
-                # Out of sample, hence no information on actual delta to compare to
-                actualDeltaAfterN = 0
-            
-            m.actualForwardData = self.data.iloc[tmpEndIndex : tmpEndIndex + longLookForward]
-            
-            if verbose:                
-                print("DELTA: ", deltaAfterN)
-                print("ACTUAL DELTA: ", actualDeltaAfterN)
-            
-            # Get the sign of the delta after N days
-            if np.sign(deltaAfterN) == np.sign(actualDeltaAfterN):
-                ratingArray[i] = 1
-            
-            if i % plotOnModuloIndex == 0:
-                pass
-                # m.plot()
-            
-            # Find realised returns going into the day (as a percentage) where tmpEndIndex is the index of the day before (last day for training)
-            realisedReturns = ( self.data.iloc[ tmpEndIndex + 1 ] - self.data.iloc[ tmpEndIndex ] ) / self.data.iloc[ tmpEndIndex ]
-            
-            if verbose:
-                print('realisedReturns: ', realisedReturns)
-                
-            # Process day in the portfolio
-            portfolio.processDay(
-                returns=realisedReturns,
-                nextDayPredictedReturns=deltaAfterN,
-                riskFreeRate=self.riskNeutral[tmpEndIndex],
-                standardDeviation=dayStdDev,
-                threshold=modelMeta['deltaThreshold'],
-                verbose=False,
+            forecast = m.forecast(
+                x_test=x_test
             )
             
-            # if i % 25 == 0:
-            #     m.plot()
+            print(f"Forecast: {forecast}")
+            print(f"Forecast Type: {type(forecast)}")
             
-            # Clear portfolio data
-            del m
-            portfolio.stockData[i] = self.data.iloc[tmpEndIndex + 1]
+            # For ML_TRAIN_ONCE we need to process each forecast point individually
+            # First, let's get the standard deviation for risk calculations
+            dayStdDev = x_train.std()
+
+            # Process each forecast point with the correct window alignment
+            for i, pred_value in enumerate(forecast):
+                # Current index in the original data
+                curr_idx = startIndex + i
+                
+                # Skip if we don't have enough data to calculate realized returns
+                if curr_idx + 1 >= len(self.data):
+                    break
+                
+                # Get the actual value at the current point
+                actual_value = x_test[i + 100 + 20]
+                
+                # Calculate predicted return
+                deltaAfterN = (pred_value - actual_value) / actual_value
+                
+                # Calculate realized return for the next day
+                realisedReturns = (self.data.iloc[curr_idx + 1] - self.data.iloc[curr_idx]) / self.data.iloc[curr_idx]
+                
+                # Track correct predictions
+                if np.sign(deltaAfterN) == np.sign(realisedReturns):
+                    ratingArray[i] = 1
+                    
+                if verbose and False:
+                    print(f'Day {i}: Actual: {actual_value}, Prediction: {pred_value}')
+                    print(f'Predicted return: {deltaAfterN}, Realized return: {realisedReturns}')
+                
+                # Process day in the portfolio
+                portfolio.processDay(
+                    returns=realisedReturns,
+                    nextDayPredictedReturns=deltaAfterN,
+                    riskFreeRate=self.riskNeutral[curr_idx],
+                    standardDeviation=dayStdDev,
+                    threshold=modelMeta['deltaThreshold'],
+                    verbose=False,
+                )
+                
+                # Update stock data
+                portfolio.stockData[i] = self.data.iloc[curr_idx + 1]
+                
+                if livePlot:
+                    portfolio.updatePlot()
             
-            if livePlot:
-                portfolio.updatePlot()
-        
+            for f in forecast:
+                
+                # Calculate forecast and determine next day's predicted returns
+                deltaAfterN = (f - x_test[-1]) / x_test[-1]  # Assuming forecast is the predicted change
+                
+                print(f"deltaAfterN: {deltaAfterN}")
+                print(f"deltaAfterN type: {type(deltaAfterN)}")
+
+                # Calculate realised returns for the next day
+                tmpEndIndex = startIndex + i
+                realisedReturns = (self.data.iloc[tmpEndIndex + 1] - self.data.iloc[tmpEndIndex]) / self.data.iloc[tmpEndIndex]
+
+                print(f"realisedReturns: {realisedReturns}")
+                
+                if verbose:
+                    print('realisedReturns: ', realisedReturns)
+                    print('predicted deltaAfterN: ', deltaAfterN)
+
+                # Process day in the portfolio
+                portfolio.processDay(
+                    returns=realisedReturns,
+                    nextDayPredictedReturns=deltaAfterN,
+                    riskFreeRate=self.riskNeutral[tmpEndIndex],
+                    standardDeviation=dayStdDev,
+                    threshold=modelMeta['deltaThreshold'],
+                    verbose=False,
+                )
+                
+            
         # Calculate how many signs were correct
         print(f"Direction Correctness: ", ratingArray.mean())
         portfolio.stockData = self.data.iloc[startIndex : endIndex]
@@ -183,6 +373,7 @@ class ModelTestingFramework:
             lookbackWindow (int): Number of days for the model to lookback over when fitting, (np.inf for maximum on data)
             startIndex (int): The starting index of the data to forecast from
             endIndex (int): The final index of the data to forecast up until
+            longLookForward (int): Timesteps to lookforward to
         """        
         return [
             self.testModel(
@@ -195,12 +386,12 @@ class ModelTestingFramework:
                 verbose=verbose,
                 plot=plot, 
                 livePlot=livePlot
-                )
+            )
             for modelMeta in self.models
         ]
     
     @staticmethod
-    def modelMetaBuilder(model, thresholds, kwargs={}, lookbackWindowOverride=None) -> list[dict]:
+    def modelMetaBuilder(model, thresholds, kwargs={}, lookbackWindowOverride=None, modelTrainType : ModelTrainType = ModelTrainType.ALGO) -> list[dict]:
         """
         Description:
             Builds model meta to be passed into self.testModels
@@ -212,6 +403,7 @@ class ModelTestingFramework:
                 'kwargs': kwargs,
                 'enabled': True,
                 'lookbackWindowOverride': lookbackWindowOverride,
+                'modelTrainType': modelTrainType
             } for threshold in thresholds
         ]
         

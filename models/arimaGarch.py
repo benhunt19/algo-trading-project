@@ -9,6 +9,9 @@ from statsmodels.tools.sm_exceptions import ConvergenceWarning, ModelWarning
 from arch import arch_model  # Import for GARCH modeling
 from src.globals import SPTL_DATA_PATH
 
+import warnings
+warnings.filterwarnings('ignore')
+
 class ArimaGarchModel(ForecastModel):
     """
     Description:

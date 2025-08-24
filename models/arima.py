@@ -8,6 +8,9 @@ from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 import warnings
 from src.globals import SPTL_DATA_PATH
 
+import warnings
+warnings.filterwarnings('ignore')
+
 class ArimaModel(ForecastModel):
     """
     Description:

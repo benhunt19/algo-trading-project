@@ -8,6 +8,9 @@ from src.globals import SPTL_DATA_PATH
 import logging
 import sys
 
+import warnings
+warnings.filterwarnings('ignore')
+
 logging.getLogger("cmdstanpy").disabled = True
 
 class GamModel(ForecastModel):

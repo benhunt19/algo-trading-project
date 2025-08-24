@@ -1,1 +1,8 @@
 .env
+Lib
+*/__pycache__/
+models/__pycache__/
+*.py[cod]
+*$py.class
+Scripts/
+data/
